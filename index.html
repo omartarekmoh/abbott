@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="http://localhost:9090/css/login.css">
+  <title>Login</title>
+</head>
+<body>
+  <div class="container">
+    <!-- Logo Section -->
+    <div class="logo-container">
+      <img src="http://localhost:9090/images/abbott-logo.png" alt="Abbott Logo" class="logo">
+      <img src="http://localhost:9090/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
+    </div>
+
+    <!-- Login Form Section -->
+    <h1>Login</h1>
+    <p>Please log in using your LibreLink email and password.</p>
+    <form id="loginForm">
+      <div class="form-group">
+        <input type="email" id="email" placeholder="Email" required>
+      </div>
+      <div class="form-group">
+        <input type="password" id="password" placeholder="Password" required>
+      </div>
+      <button type="submit" class="btn-primary">Log In</button>
+      <a href="/forgot-password" class="forgot-password">Forgot Password?</a>
+    </form>
+  </div>
+
+  <!-- Notifications -->
+  <div id="notification" class="notification"></div>
+
+  <script>
+    async function loginUser(email, password) {
+      try {
+        const response = await fetch('http://localhost:9090/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Login successful
+          alert(data.message);
+
+          // Store the JWT token in localStorage
+          localStorage.setItem('token', data.token);
+
+          // Redirect to the dashboard
+          window.location.href = '/dashboard';
+        } else {
+          // Show error message on the login page
+          displayNotification(data.message || 'Invalid email or password.');
+        }
+      } catch (error) {
+        console.error('Error logging in:', error);
+        displayNotification('An unexpected error occurred. Please try again.');
+      }
+    }
+
+    function displayNotification(message) {
+      const notification = document.getElementById("notification");
+      notification.textContent = message;
+      notification.classList.add("show");
+
+      // Automatically hide the notification after 4 seconds
+      setTimeout(() => {
+        notification.classList.remove("show");
+      }, 4000);
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      await loginUser(email, password);
+    });
+  </script>
+</body>
+</html>
+ 
