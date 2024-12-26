@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const mongoose = require("mongoose");
 const nodemailer = require("nodemailer");
@@ -7,17 +9,20 @@ const User = require("./models/User.model");
 const jwt = require("jsonwebtoken");
 const twilio = require("twilio");
 const cors = require("cors");
-require("dotenv").config();
 const path = require("path");
+
 const app = express();
+const apiRouter = express.Router();
+
+const PORT = process.env.PORT || 9090;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`; // Fallback to localhost if not defined
+
 app.set("view engine", "ejs");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "frontend")));
 
-const apiRouter = express.Router();
-const PORT = 9090;
-
+// Authentication middleware
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
   if (!token)
@@ -40,14 +45,6 @@ const TWILLIO_NUM = process.env.TWILLIO_NUM;
 
 const twilioClient = twilio(TWILLIO_SID, TWILLIO_TOKEN);
 
-// const transporter = nodemailer.createTransport({
-//   service: "gmail",
-//   auth: {
-//     user: process.env.EMAIL,
-//     pass: process.env.EMAIL_PASSWORD,
-//   },
-// });
-
 apiRouter.post("/register", async (req, res) => {
   try {
     const { name, email, password, phoneNumber } = req.body;
@@ -68,7 +65,7 @@ apiRouter.post("/register", async (req, res) => {
       phoneNumber,
     });
 
-    const verificationLink = `${req.protocol}://localhost:9090/verify/${verificationToken}`;
+    const verificationLink = `${BASE_URL}/verify/${verificationToken}`;
     console.log(verificationLink);
 
     res.status(201).json({
@@ -110,6 +107,7 @@ apiRouter.post("/verify/:token", async (req, res) => {
       .json({ error: "An error occurred while processing your request." });
   }
 });
+
 apiRouter.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -127,14 +125,15 @@ apiRouter.post("/login", async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "1h",
-      }
+      },
     );
-
+ 
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 apiRouter.post("/send-message", async (req, res) => {
   const { phoneNumber } = req.body;
 
@@ -153,8 +152,8 @@ apiRouter.post("/send-message", async (req, res) => {
       session,
     });
 
-    const message = `Please give us your consent by following this link: ${req.protocol}://localhost:9090/verify/${verificationToken}`;
-    console.log(message);
+    const message = `Please give us your consent by following this link: ${BASE_URL}/verify/${verificationToken}`;
+    // console.log(message);
 
     let messageResponse = null;
 
@@ -198,13 +197,11 @@ apiRouter.get("/dashboard", authenticate, (req, res) => {
 app.use("/API", apiRouter);
 
 app.get("/login", (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
-  res.render("index", { baseUrl });
+  res.render("index", { baseUrl: BASE_URL });
 });
 
 app.get("/dashboard", (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
-  res.render("dashboard", { baseUrl });
+  res.render("dashboard", { baseUrl: BASE_URL });
 });
 
 app.get("/verify/:token", async (req, res) => {
@@ -213,14 +210,15 @@ app.get("/verify/:token", async (req, res) => {
 
     const user = await User.findOne({ verificationToken: token });
     if (!user) {
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
       return res
         .status(404)
-        .render("invalid-token", { title: "Invalid or Expired Token", baseUrl });
+        .render("invalid-token", {
+          title: "Invalid or Expired Token",
+          baseUrl: BASE_URL,
+        });
     }
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    res.render("verify", { token, baseUrl });
+    res.render("verify", { token, baseUrl: BASE_URL });
   } catch (error) {
     res
       .status(500)
@@ -229,7 +227,7 @@ app.get("/verify/:token", async (req, res) => {
 });
 
 app.use((req, res) => {
-  res.status(404).render("404", { title: "Page Not Found" });
+  res.status(404).render("404", { title: "Page Not Found", baseUrl: BASE_URL });
 });
 
 const DB_URL = process.env.DB_URL;
@@ -239,7 +237,7 @@ mongoose
     console.log("Connected!");
 
     app.listen(PORT, () => {
-      console.log(`Server is running at http://localhost:${PORT}`);
+      console.log(`Server is running at ${BASE_URL}`);
     });
   })
   .catch(() => {

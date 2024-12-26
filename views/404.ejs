@@ -66,16 +66,15 @@
 <body>
   <div class="container">
     <div class="logo">
-        <img src="http://localhost:9090/images/abbott-logo.png" alt="Abbott Logo">
-        <img src="http://localhost:9090/images/freestyle-logo.png" alt="Freestyle Libre Logo">
+        <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo">
+        <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo">
     </div>
     <div class="message">
-        
       <h1>404 - Page Not Found</h1>
       <p>Oops! The page you’re looking for doesn’t exist.<br>
       Please check the URL or return to the homepage.</p>
     </div>
-    <a href="/dashboard" class="btn">Go to Homepage</a>
+    <a href="<%= baseUrl %>/dashboard" class="btn">Go to Homepage</a>
   </div>
 </body>
 </html>
