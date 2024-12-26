@@ -3,21 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="http://localhost:9090/css/dashboard.css">
+  <link rel="stylesheet" href="<%= baseUrl %>/css/dashboard.css">
   <title>Dashboard</title>
-
 </head>
 <body>
   <div class="container">
     <!-- Logo Section -->
     <div class="logo-container">
-      <img src="http://localhost:9090/images/abbott-logo.png" alt="Abbott Logo" class="logo">
-      <img src="http://localhost:9090/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
+      <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo" class="logo">
+      <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
     </div>
 
     <!-- Success Message Section -->
     <h1 class="success-title">You’re all set!</h1>
-    <img src="http://localhost:9090/images/butterfly-icon.png" alt="Butterfly Icon" class="success-icon">
+    <img src="<%= baseUrl %>/images/butterfly-icon.png" alt="Butterfly Icon" class="success-icon">
     <p class="success-message">
       Thank you for giving us your consent. A copy of this will be kept on file.<br>
       Please continue your phone conversation.
@@ -33,18 +32,19 @@
   </div>
 
   <script>
+    const baseUrl = "<%= baseUrl %>";
+
     async function loadDashboard() {
       const token = localStorage.getItem('token');
 
       if (!token) {
-        // alert('You are not authorized. Please log in.');
-        window.location.href = '/login';
+        window.location.href = `${baseUrl}/login`;
         return;
       }
 
       try {
         // Fetch protected data using the token
-        const response = await fetch('http://localhost:9090/api/dashboard', {
+        const response = await fetch(`${baseUrl}/api/dashboard`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`, // Send the token in Authorization header
@@ -61,21 +61,20 @@
             <p><strong>Email:</strong> ${data.user.email}</p>
           `;
         } else {
-          // alert('Access denied. Redirecting to login.');
           localStorage.removeItem('token');
-          window.location.href = '/login';
+          window.location.href = `${baseUrl}/login`;
         }
       } catch (error) {
         console.error('Error loading dashboard:', error);
         alert('An error occurred. Redirecting to login.');
-        window.location.href = '/login';
+        window.location.href = `${baseUrl}/login`;
       }
     }
 
     function logout() {
       // Clear the token and redirect to login
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      window.location.href = `${baseUrl}/login`;
     }
 
     // Load the dashboard data on page load

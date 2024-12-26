@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify Consent</title>
-  <link rel="stylesheet" href="http://localhost:9090/css/styles.css">
+  <link rel="stylesheet" href="<%= baseUrl %>/css/styles.css">
 </head>
 <body>
   <div class="container">
     <!-- Logo Section -->
     <div class="logo-container">
-      <img src="http://localhost:9090/images/abbott-logo.png" alt="Abbott Logo" class="logo">
-      <img src="http://localhost:9090/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
+      <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo" class="logo">
+      <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
     </div>
 
     <!-- Main Heading -->
@@ -41,84 +41,52 @@
     </p>
   </div>
 
-  <script src="http://localhost:9090/js/notifications.js"></script>
-  <script src="http://localhost:9090/js/auth.js"></script>
-  <!-- <script>
-    // Automatically include the token in the form action
-    const token = window.location.pathname.split("/").pop();
-    const form = document.getElementById("consentForm");
-    form.action = `http://localhost:9090/verify/${token}`;
-
-    // Toggle Switch Logic
-    const mandatoryToggle = document.getElementById("mandatoryToggle");
-    const marketingToggle = document.getElementById("marketingToggle");
-    const consentInput = document.getElementById("consent");
-    const marketingInput = document.getElementById("marketing");
-
-    // Update hidden field values when toggles are clicked
-    mandatoryToggle.addEventListener("click", () => {
-      const isActive = mandatoryToggle.classList.toggle("active");
-      consentInput.value = isActive ? "1" : "0"; // Set to 1 if active, otherwise 0
-    });
-
-    marketingToggle.addEventListener("click", () => {
-      const isActive = marketingToggle.classList.toggle("active");
-      marketingInput.value = isActive ? "1" : "0"; // Set to 1 if active, otherwise 0
-    });
-
-    // Form submission with updated values
-    form.addEventListener("submit", (e) => {
-      // Ensure consent is always "1" before allowing submission
-      if (consentInput.value !== "1") {
-        e.preventDefault();
-        alert("Mandatory consent is required.");
-      }
-    });
-  </script> -->
-
+  <script src="<%= baseUrl %>/js/notifications.js"></script>
+  <script src="<%= baseUrl %>/js/auth.js"></script>
   <script>
+    const baseUrl = "<%= baseUrl %>";
     const form = document.getElementById("consentForm");
     const mandatoryToggle = document.getElementById("mandatoryToggle");
     const marketingToggle = document.getElementById("marketingToggle");
     const consentInput = document.getElementById("consent");
     const marketingInput = document.getElementById("marketing");
-  
+
     // Update hidden field values when toggles are clicked
     mandatoryToggle.addEventListener("click", () => {
       const isActive = mandatoryToggle.classList.toggle("active");
       consentInput.value = isActive ? "1" : "0"; // Set to 1 if active, otherwise 0
     });
-  
+
     marketingToggle.addEventListener("click", () => {
       const isActive = marketingToggle.classList.toggle("active");
       marketingInput.value = isActive ? "1" : "0"; // Set to 1 if active, otherwise 0
     });
-  
+
     // Form submission with updated values
     form.addEventListener("submit", async (e) => {
       e.preventDefault(); // Prevent default form submission
-  
+
       const token = window.location.pathname.split("/").pop();
       const formData = {
         consent: consentInput.value,
         marketing: marketingInput.value,
       };
-  
+
       try {
-        const response = await fetch(`http://localhost:9090/api/verify/${token}`, {
+        // alert(`${baseUrl}/api/verify/${token}`)
+        const response = await fetch(`${baseUrl}/api/verify/${token}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(formData),
         });
-  
+
         const data = await response.json();
-        console.log(data)
+
         if (response.ok) {
           // Consent was successful, redirect to the login page
-          // alert(data.message);
-          window.location.href = "http://localhost:9090/login";
+          window.location.href = `${baseUrl}/login`;
         } else {
           // Show error message and stay on the consent page
           alert(data.message || "An error occurred. Please try again.");

@@ -66,15 +66,15 @@
 <body>
   <div class="container">
     <div class="logo">
-        <img src="http://localhost:9090/images/abbott-logo.png" alt="Abbott Logo">
-        <img src="http://localhost:9090/images/freestyle-logo.png" alt="Freestyle Libre Logo">
+        <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo">
+        <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo">
     </div>
     <div class="message">
       <h1>Invalid or Expired Token</h1>
       <p>The token you provided is either invalid or has expired.<br>
       Please request a new verification link or contact support for assistance.</p>
     </div>
-    <a href="/dashboard" class="btn">Go to Homepage</a>
+    <a href="<%= baseUrl %>/dashboard" class="btn">Go to Homepage</a>
   </div>
 </body>
 </html>

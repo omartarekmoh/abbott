@@ -198,11 +198,13 @@ apiRouter.get("/dashboard", authenticate, (req, res) => {
 app.use("/API", apiRouter);
 
 app.get("/login", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  res.render("index", { baseUrl });
 });
 
 app.get("/dashboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "dashboard.html"));
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  res.render("dashboard", { baseUrl });
 });
 
 app.get("/verify/:token", async (req, res) => {
@@ -211,12 +213,14 @@ app.get("/verify/:token", async (req, res) => {
 
     const user = await User.findOne({ verificationToken: token });
     if (!user) {
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
       return res
         .status(404)
-        .render("invalid-token", { title: "Invalid or Expired Token" });
+        .render("invalid-token", { title: "Invalid or Expired Token", baseUrl });
     }
 
-    res.sendFile(path.join(__dirname, "verify.html"));
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.render("verify", { token, baseUrl });
   } catch (error) {
     res
       .status(500)

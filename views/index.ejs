@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="http://localhost:9090/css/login.css">
+  <link rel="stylesheet" href="<%= baseUrl %>/css/login.css">
   <title>Login</title>
 </head>
 <body>
   <div class="container">
     <!-- Logo Section -->
     <div class="logo-container">
-      <img src="http://localhost:9090/images/abbott-logo.png" alt="Abbott Logo" class="logo">
-      <img src="http://localhost:9090/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
+      <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo" class="logo">
+      <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
     </div>
 
     <!-- Login Form Section -->
@@ -25,7 +25,7 @@
         <input type="password" id="password" placeholder="Password" required>
       </div>
       <button type="submit" class="btn-primary">Log In</button>
-      <a href="/forgot-password" class="forgot-password">Forgot Password?</a>
+      <a href="<%= baseUrl %>/forgot-password" class="forgot-password">Forgot Password?</a>
     </form>
   </div>
 
@@ -33,9 +33,11 @@
   <div id="notification" class="notification"></div>
 
   <script>
+    const baseUrl = "<%= baseUrl %>";
+
     async function loginUser(email, password) {
       try {
-        const response = await fetch('http://localhost:9090/api/login', {
+        const response = await fetch(`${baseUrl}/api/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -53,7 +55,7 @@
           localStorage.setItem('token', data.token);
 
           // Redirect to the dashboard
-          window.location.href = '/dashboard';
+          window.location.href = `${baseUrl}/dashboard`;
         } else {
           // Show error message on the login page
           displayNotification(data.message || 'Invalid email or password.');
@@ -84,4 +86,3 @@
   </script>
 </body>
 </html>
- 
