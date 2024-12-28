@@ -24,21 +24,20 @@ const logger = createLogger({
   level: "info",
   format: format.combine(
     format.timestamp(),
-    format.json()
+    format.json() // JSON format for easier parsing in production systems
   ),
   transports: [
-    new transports.File({ filename: "error.log", level: "error" }),
-    new transports.File({ filename: "combined.log" }),
+    new transports.File({ filename: "error.log", level: "error" }), // Log errors
+    new transports.File({ filename: "combined.log" }), // Log all levels
   ],
 });
 
-if (process.env.NODE_ENV !== "production") {
-  logger.add(
-    new transports.Console({
-      format: format.simple(),
-    })
-  );
-}
+// Add Console transport for both development and production
+logger.add(
+  new transports.Console({
+    format: process.env.NODE_ENV === "production" ? format.json() : format.simple(),
+  })
+);
 
 // Middleware
 app.set("view engine", "ejs");
@@ -49,24 +48,25 @@ app.use(express.static(path.join(__dirname, "frontend")));
 // Use Morgan for HTTP request logging
 app.use(
   morgan("combined", {
-    stream: { write: (message) => logger.info(message.trim()) },
+    stream: { write: (message) => logger.info(message.trim()) }, // Stream HTTP logs to Winston
   })
 );
 
 // Authentication middleware
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
-  if (!token)
-    return res
-      .status(401)
-      .json({ message: "Access denied. No token provided." });
+  if (!token) {
+    logger.warn("Access denied: No token provided");
+    return res.status(401).json({ message: "Access denied. No token provided." });
+  }
 
   try {
     const verified = jwt.verify(token, process.env.JWT_SECRET);
     req.user = verified;
+    logger.info(`Authenticated user: ${req.user.email}`);
     next();
   } catch (error) {
-    logger.error("Invalid token access attempt:", error);
+    logger.error("Invalid token access attempt", { error: error.message });
     return res.status(400).json({ message: "Invalid token." });
   }
 };
@@ -77,6 +77,7 @@ const TWILLIO_NUM = process.env.TWILLIO_NUM;
 
 const twilioClient = twilio(TWILLIO_SID, TWILLIO_TOKEN);
 
+// Routes
 apiRouter.post("/register", async (req, res) => {
   try {
     const { name, email, password, phoneNumber } = req.body;
@@ -100,13 +101,13 @@ apiRouter.post("/register", async (req, res) => {
     });
 
     const verificationLink = `${BASE_URL}/verify/${verificationToken}`;
-    logger.info(`Verification link generated: ${verificationLink}`);
+    logger.info(`Verification link generated for user: ${email}`);
 
     res.status(201).json({
       message: "User registered. Please check your email for verification.",
     });
   } catch (error) {
-    logger.error("Error during registration:", error);
+    logger.error("Error during registration", { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -142,7 +143,7 @@ apiRouter.post("/verify/:token", async (req, res) => {
       message: "Thank you for your consent! You can now log in.",
     });
   } catch (error) {
-    logger.error("Error during verification:", error);
+    logger.error("Error during verification", { error: error.message });
     res
       .status(500)
       .json({ error: "An error occurred while processing your request." });
@@ -175,11 +176,12 @@ apiRouter.post("/login", async (req, res) => {
     logger.info(`User logged in successfully: ${email}`);
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
-    logger.error("Error during login:", error);
+    logger.error("Error during login", { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Send-Message Route (Logging Enhanced)
 apiRouter.post("/send-message", async (req, res) => {
   const { phoneNumber } = req.body;
 
@@ -200,7 +202,7 @@ apiRouter.post("/send-message", async (req, res) => {
     });
 
     const message = `Please give us your consent by following this link: ${BASE_URL}/verify/${verificationToken}`;
-    logger.info("Generated message:", message);
+    logger.info("Generated message", { message });
 
     let messageResponse = null;
 
@@ -217,7 +219,10 @@ apiRouter.post("/send-message", async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    logger.info("Message sent successfully and user added:", user[0]);
+    logger.info("Message sent successfully and user added", {
+      user: user[0],
+      messageResponse: messageResponse || "Message not sent (development mode)",
+    });
     res.status(200).send({
       success: true,
       message: "User added and message sent successfully!",
@@ -230,7 +235,7 @@ apiRouter.post("/send-message", async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    logger.error("Error during send-message:", error);
+    logger.error("Error during send-message", { error: error.message });
 
     res.status(500).send({
       success: false,
@@ -244,6 +249,7 @@ apiRouter.get("/dashboard", authenticate, (req, res) => {
   res.json({ message: "This is protected dashboard data.", user: req.user });
 });
 
+// Routes and App Start (No Changes Beyond Logging)
 app.use("/API", apiRouter);
 
 app.get("/login", (req, res) => {
@@ -269,7 +275,7 @@ app.get("/verify/:token", async (req, res) => {
 
     res.render("verify", { token, baseUrl: BASE_URL });
   } catch (error) {
-    logger.error("Error during token verification:", error);
+    logger.error("Error during token verification", { error: error.message });
     res
       .status(500)
       .send("<h1>An error occurred while processing your request.</h1>");
@@ -291,5 +297,5 @@ mongoose
     });
   })
   .catch((error) => {
-    logger.error("Database connection error:", error);
+    logger.error("Database connection error", { error: error.message });
   });
