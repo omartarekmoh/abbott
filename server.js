@@ -10,17 +10,48 @@ const jwt = require("jsonwebtoken");
 const twilio = require("twilio");
 const cors = require("cors");
 const path = require("path");
+const { createLogger, format, transports } = require("winston");
+const morgan = require("morgan");
 
 const app = express();
 const apiRouter = express.Router();
 
 const PORT = process.env.PORT || 9090;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`; // Fallback to localhost if not defined
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
+// Winston Logger Configuration
+const logger = createLogger({
+  level: "info",
+  format: format.combine(
+    format.timestamp(),
+    format.json()
+  ),
+  transports: [
+    new transports.File({ filename: "error.log", level: "error" }),
+    new transports.File({ filename: "combined.log" }),
+  ],
+});
+
+if (process.env.NODE_ENV !== "production") {
+  logger.add(
+    new transports.Console({
+      format: format.simple(),
+    })
+  );
+}
+
+// Middleware
 app.set("view engine", "ejs");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "frontend")));
+
+// Use Morgan for HTTP request logging
+app.use(
+  morgan("combined", {
+    stream: { write: (message) => logger.info(message.trim()) },
+  })
+);
 
 // Authentication middleware
 const authenticate = (req, res, next) => {
@@ -35,6 +66,7 @@ const authenticate = (req, res, next) => {
     req.user = verified;
     next();
   } catch (error) {
+    logger.error("Invalid token access attempt:", error);
     return res.status(400).json({ message: "Invalid token." });
   }
 };
@@ -48,13 +80,15 @@ const twilioClient = twilio(TWILLIO_SID, TWILLIO_TOKEN);
 apiRouter.post("/register", async (req, res) => {
   try {
     const { name, email, password, phoneNumber } = req.body;
+    logger.info(`Registration attempt for email: ${email}`);
 
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+    if (existingUser) {
+      logger.warn("Registration failed: Email already in use");
       return res.status(400).json({ message: "Email already in use" });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
     const user = await User.create({
@@ -66,12 +100,13 @@ apiRouter.post("/register", async (req, res) => {
     });
 
     const verificationLink = `${BASE_URL}/verify/${verificationToken}`;
-    console.log(verificationLink);
+    logger.info(`Verification link generated: ${verificationLink}`);
 
     res.status(201).json({
       message: "User registered. Please check your email for verification.",
     });
   } catch (error) {
+    logger.error("Error during registration:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -81,12 +116,16 @@ apiRouter.post("/verify/:token", async (req, res) => {
     const { token } = req.params;
     const { consent, marketing } = req.body;
 
+    logger.info(`Verification attempt with token: ${token}`);
     const user = await User.findOne({ verificationToken: token });
+
     if (!user) {
+      logger.warn("Verification failed: Invalid or expired token");
       return res.status(404).json({ message: "Invalid or expired token." });
     }
 
     if (!consent || consent == "0") {
+      logger.warn("Verification failed: Consent not given");
       return res
         .status(400)
         .json({ message: "You must provide consent to proceed." });
@@ -98,10 +137,12 @@ apiRouter.post("/verify/:token", async (req, res) => {
     user.consentGiven = consent == "1" ? true : false;
     await user.save();
 
+    logger.info(`User verified successfully: ${user.email}`);
     res.status(200).json({
       message: "Thank you for your consent! You can now log in.",
     });
   } catch (error) {
+    logger.error("Error during verification:", error);
     res
       .status(500)
       .json({ error: "An error occurred while processing your request." });
@@ -112,24 +153,29 @@ apiRouter.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    logger.info(`Login attempt for email: ${email}`);
     const user = await User.findOne({ email });
-    if (!user)
+    if (!user) {
+      logger.warn("Login failed: Invalid email");
       return res.status(400).json({ message: "Invalid email or password" });
+    }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
+    if (!isPasswordValid) {
+      logger.warn("Login failed: Invalid password");
       return res.status(400).json({ message: "Invalid email or password" });
+    }
 
     const token = jwt.sign(
       { id: user._id, name: user.name, email: user.email },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-      },
+      { expiresIn: "1h" }
     );
- 
+
+    logger.info(`User logged in successfully: ${email}`);
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
+    logger.error("Error during login:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -138,6 +184,7 @@ apiRouter.post("/send-message", async (req, res) => {
   const { phoneNumber } = req.body;
 
   if (!phoneNumber) {
+    logger.warn('Send-message failed: Missing "phoneNumber" in request body');
     return res
       .status(400)
       .send({ error: 'Missing "phoneNumber" in request body.' });
@@ -153,7 +200,7 @@ apiRouter.post("/send-message", async (req, res) => {
     });
 
     const message = `Please give us your consent by following this link: ${BASE_URL}/verify/${verificationToken}`;
-    // console.log(message);
+    logger.info("Generated message:", message);
 
     let messageResponse = null;
 
@@ -164,12 +211,13 @@ apiRouter.post("/send-message", async (req, res) => {
         to: `+${phoneNumber}`,
       });
     } else {
-      console.log("Message sending skipped in development environment.");
+      logger.info("Message sending skipped in development environment.");
     }
 
     await session.commitTransaction();
     session.endSession();
 
+    logger.info("Message sent successfully and user added:", user[0]);
     res.status(200).send({
       success: true,
       message: "User added and message sent successfully!",
@@ -182,6 +230,7 @@ apiRouter.post("/send-message", async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
+    logger.error("Error during send-message:", error);
 
     res.status(500).send({
       success: false,
@@ -191,6 +240,7 @@ apiRouter.post("/send-message", async (req, res) => {
 });
 
 apiRouter.get("/dashboard", authenticate, (req, res) => {
+  logger.info(`Dashboard accessed by user: ${req.user.email}`);
   res.json({ message: "This is protected dashboard data.", user: req.user });
 });
 
@@ -210,16 +260,16 @@ app.get("/verify/:token", async (req, res) => {
 
     const user = await User.findOne({ verificationToken: token });
     if (!user) {
-      return res
-        .status(404)
-        .render("invalid-token", {
-          title: "Invalid or Expired Token",
-          baseUrl: BASE_URL,
-        });
+      logger.warn("Invalid or expired token access attempted");
+      return res.status(404).render("invalid-token", {
+        title: "Invalid or Expired Token",
+        baseUrl: BASE_URL,
+      });
     }
 
     res.render("verify", { token, baseUrl: BASE_URL });
   } catch (error) {
+    logger.error("Error during token verification:", error);
     res
       .status(500)
       .send("<h1>An error occurred while processing your request.</h1>");
@@ -227,6 +277,7 @@ app.get("/verify/:token", async (req, res) => {
 });
 
 app.use((req, res) => {
+  logger.warn(`404 error: URL not found ${req.originalUrl}`);
   res.status(404).render("404", { title: "Page Not Found", baseUrl: BASE_URL });
 });
 
@@ -234,12 +285,11 @@ const DB_URL = process.env.DB_URL;
 mongoose
   .connect(DB_URL)
   .then(() => {
-    console.log("Connected!");
-
+    logger.info("Connected to the database");
     app.listen(PORT, () => {
-      console.log(`Server is running at ${BASE_URL}`);
+      logger.info(`Server is running at ${BASE_URL}`);
     });
   })
-  .catch(() => {
-    console.log("Error happened connecting to database!");
+  .catch((error) => {
+    logger.error("Database connection error:", error);
   });
