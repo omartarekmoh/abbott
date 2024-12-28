@@ -4,21 +4,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify Consent</title>
-  <link rel="stylesheet" href="<%= baseUrl %>/css/styles_all.css">
+  <link rel="stylesheet" href="<%= baseUrl %>/css/styles.css">
+  <style>
+    .notification {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      font-size: 16px;
+      z-index: 1000;
+      display: none;
+    }
+    .notification.show {
+      display: block;
+    }
+    .notification.success {
+      background-color: #4caf50; /* Green for success */
+    }
+    .notification.error {
+      background-color: #f44336; /* Red for error */
+    }
+  </style>
 </head>
 <body>
+  <div id="notification" class="notification"></div>
   <div class="container">
-    <!-- Logo Section -->
     <div class="logo-container">
       <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo" class="logo">
       <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
     </div>
-
-    <!-- Main Heading -->
     <h1>Consent Form</h1>
     <p>Please select and accept to continue.</p>
-
-    <!-- Consent Form -->
     <form id="consentForm" method="POST">
       <div class="toggle-container">
         <span class="toggle-label">Mandatory *</span>
@@ -30,70 +50,58 @@
         <div class="toggle-switch" id="marketingToggle"></div>
         <input type="hidden" id="marketing" name="marketing" value="0">
       </div>
-
-      <!-- Accept Button -->
       <button type="submit">Accept</button>
     </form>
-
-    <!-- Footer -->
-    <p class="footer-text">
-      By clicking Accept, you are agreeing to the terms and conditions.
-    </p>
+    <p class="footer-text">By clicking Accept, you are agreeing to the terms and conditions.</p>
   </div>
-
-  <script src="<%= baseUrl %>/js/notifications.js"></script>
-  <script src="<%= baseUrl %>/js/auth.js"></script>
   <script>
     const baseUrl = "<%= baseUrl %>";
+
+    function displayNotification(message, type) {
+      const notification = document.getElementById("notification");
+      notification.textContent = message;
+      notification.className = `notification show ${type}`;
+
+      setTimeout(() => {
+        notification.classList.remove("show");
+      }, 4000);
+    }
+
     const form = document.getElementById("consentForm");
     const mandatoryToggle = document.getElementById("mandatoryToggle");
     const marketingToggle = document.getElementById("marketingToggle");
     const consentInput = document.getElementById("consent");
     const marketingInput = document.getElementById("marketing");
 
-    // Update hidden field values when toggles are clicked
     mandatoryToggle.addEventListener("click", () => {
-      const isActive = mandatoryToggle.classList.toggle("active");
-      consentInput.value = isActive ? "1" : "0"; // Set to 1 if active, otherwise 0
+      mandatoryToggle.classList.toggle("active");
+      consentInput.value = mandatoryToggle.classList.contains("active") ? "1" : "0";
     });
 
     marketingToggle.addEventListener("click", () => {
-      const isActive = marketingToggle.classList.toggle("active");
-      marketingInput.value = isActive ? "1" : "0"; // Set to 1 if active, otherwise 0
+      marketingToggle.classList.toggle("active");
+      marketingInput.value = marketingToggle.classList.contains("active") ? "1" : "0";
     });
 
-    // Form submission with updated values
     form.addEventListener("submit", async (e) => {
-      e.preventDefault(); // Prevent default form submission
-
+      e.preventDefault();
       const token = window.location.pathname.split("/").pop();
-      const formData = {
-        consent: consentInput.value,
-        marketing: marketingInput.value,
-      };
+      const formData = { consent: consentInput.value, marketing: marketingInput.value };
 
       try {
-        // alert(`${baseUrl}/api/verify/${token}`)
-        const response = await        fetch(`${baseUrl}/api/verify/${token}`, {
+        const response = await fetch(`${baseUrl}/api/verify/${token}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
         });
-
         const data = await response.json();
-
         if (response.ok) {
-          // Consent was successful, redirect to the login page
-          window.location.href = `${baseUrl}/login`;
+          window.location.href = `${baseUrl}/login?message=${encodeURIComponent(data.message)}&type=success`;
         } else {
-          // Show error message and stay on the consent page
-          alert(data.message || "An error occurred. Please try again.");
+          displayNotification(data.message || "An error occurred. Please try again.", "error");
         }
       } catch (error) {
-        console.error("Error submitting consent form:", error);
-        alert("An unexpected error occurred. Please try again.");
+        displayNotification("An unexpected error occurred. Please try again.", "error");
       }
     });
   </script>

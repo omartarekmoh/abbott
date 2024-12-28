@@ -4,18 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="<%= baseUrl %>/css/login.css">
-  
   <title>Login</title>
+  <style>
+    .notification {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      font-size: 16px;
+      z-index: 1000;
+      display: none;
+    }
+    .notification.show {
+      display: block;
+    }
+    .notification.success {
+      background-color: #4caf50; /* Green for success */
+    }
+    .notification.error {
+      background-color: #f44336; /* Red for error */
+    }
+  </style>
 </head>
 <body>
+  <div id="notification" class="notification"></div>
   <div class="container">
-    <!-- Logo Section -->
     <div class="logo-container">
       <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo" class="logo">
       <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
     </div>
-
-    <!-- Login Form Section -->
     <h1>Login</h1>
     <p>Please log in using your LibreLink email and password.</p>
     <form id="loginForm">
@@ -26,55 +47,51 @@
         <input type="password" id="password" placeholder="Password" required>
       </div>
       <button type="submit" class="btn-primary">Log In</button>
+      <a href="<%= baseUrl %>/forgot-password" class="forgot-password">Forgot Password?</a>
     </form>
   </div>
-
-  <!-- Notifications -->
-  <div id="notification" class="notification"></div>
-
   <script>
     const baseUrl = "<%= baseUrl %>";
+
+    function displayNotification(message, type) {
+      const notification = document.getElementById("notification");
+      notification.textContent = message;
+
+      // Add appropriate class for the notification type
+      notification.className = `notification show ${type}`;
+
+      setTimeout(() => {
+        notification.classList.remove("show");
+      }, 4000);
+    }
+
+    // Display notification from query parameter if present
+    const message = new URLSearchParams(window.location.search).get('message');
+    const messageType = new URLSearchParams(window.location.search).get('type'); // 'success' or 'error'
+    if (message) {
+      displayNotification(decodeURIComponent(message), messageType || 'g');
+    }
 
     async function loginUser(email, password) {
       try {
         const response = await fetch(`${baseUrl}/api/login`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),
         });
-
         const data = await response.json();
 
         if (response.ok) {
-          // Login successful
-          alert(data.message);
-          // alert(data.token)
-          // Store the JWT token in localStorage
+          // On success, display green notification and redirect to dashboard
           localStorage.setItem('token', data.token);
-
-          // Redirect to the dashboard
-          window.location.href = `${baseUrl}/dashboard`;
+          window.location.href = `${baseUrl}/dashboard?message=${encodeURIComponent(data.message)}&type=success`;
         } else {
-          // Show error message on the login page
-          displayNotification(data.message || 'Invalid email or password.');
+          // On error, display red notification
+          displayNotification(data.message || 'Invalid email or password.', 'error');
         }
       } catch (error) {
-        console.error('Error logging in:', error);
-        displayNotification('An unexpected error occurred. Please try again.');
+        displayNotification('An unexpected error occurred. Please try again.', 'error');
       }
-    }
-
-    function displayNotification(message) {
-      const notification = document.getElementById("notification");
-      notification.textContent = message;
-      notification.classList.add("show");
-
-      // Automatically hide the notification after 4 seconds
-      setTimeout(() => {
-        notification.classList.remove("show");
-      }, 4000);
     }
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
