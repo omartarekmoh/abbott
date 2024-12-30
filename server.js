@@ -266,11 +266,41 @@ apiRouter.post("/send-message", async (req, res) => {
   }
 });
 
-// Remaining Routes and App Initialization
+// Routes and App Start (No Changes Beyond Logging)
 app.use("/API", apiRouter);
 
+app.get("/login", (req, res) => {
+  res.render("index", { baseUrl: BASE_URL });
+});
+
+app.get("/dashboard", (req, res) => {
+  res.render("dashboard", { baseUrl: BASE_URL });
+});
+
+app.get("/verify/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const user = await User.findOne({ verificationToken: token });
+    if (!user) {
+      logger.warn("Invalid or expired token access attempted");
+      return res.status(404).render("invalid-token", {
+        title: "Invalid or Expired Token",
+        baseUrl: BASE_URL,
+      });
+    }
+
+    res.render("verify", { token, baseUrl: BASE_URL });
+  } catch (error) {
+    logger.error("Error during token verification", { error: error.message });
+    res
+      .status(500)
+      .send("<h1>An error occurred while processing your request.</h1>");
+  }
+});
+
 app.use((req, res) => {
-  logger.warn(`404 error: URL not found ${req.originalUrl}`);
+  logger.warn(404 error: URL not found ${req.originalUrl});
   res.status(404).render("404", { title: "Page Not Found", baseUrl: BASE_URL });
 });
 
