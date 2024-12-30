@@ -74,6 +74,32 @@ const TWILLIO_NUM = process.env.TWILLIO_NUM;
 const twilioClient = twilio(TWILLIO_SID, TWILLIO_TOKEN);
 
 // Routes
+apiRouter.get("/user", async (req, res) => {
+  try {
+    const { phoneNumber } = req.query;
+
+    if (!phoneNumber) {
+      logger.warn('Get user failed: Missing "phoneNumber" in query parameters');
+      return res.status(400).json({ error: 'Missing "phoneNumber" in query parameters.' });
+    }
+
+    logger.info(`Fetching user data for phone number: ${phoneNumber}`);
+
+    const user = await User.findOne({ phoneNumber });
+
+    if (!user) {
+      logger.warn(`No user found with phone number: ${phoneNumber}`);
+      return res.status(404).json({success: false, message: "User not found." });
+    }
+
+    logger.info(`User data retrieved successfully for phone number: ${phoneNumber}`, { user });
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    logger.error("Error retrieving user by phone number", { error: error.message });
+    res.status(500).json({ success: false, error: "An error occurred while fetching the user data." });
+  }
+});
+
 apiRouter.post("/register", async (req, res) => {
   try {
     const { name, email, password, phoneNumber } = req.body;
