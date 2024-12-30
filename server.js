@@ -24,20 +24,16 @@ const logger = createLogger({
   level: "info",
   format: format.combine(
     format.timestamp(),
-    format.json() // JSON format for easier parsing in production systems
+    format.json()
   ),
   transports: [
-    new transports.File({ filename: "error.log", level: "error" }), // Log errors
-    new transports.File({ filename: "combined.log" }), // Log all levels
+    new transports.File({ filename: "error.log", level: "error" }),
+    new transports.File({ filename: "combined.log" }),
+    new transports.Console({
+      format: process.env.NODE_ENV === "production" ? format.json() : format.simple(),
+    }),
   ],
 });
-
-// Add Console transport for both development and production
-logger.add(
-  new transports.Console({
-    format: process.env.NODE_ENV === "production" ? format.json() : format.simple(),
-  })
-);
 
 // Middleware
 app.set("view engine", "ejs");
@@ -45,10 +41,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "frontend")));
 
-// Use Morgan for HTTP request logging
+// Morgan HTTP logging
 app.use(
   morgan("combined", {
-    stream: { write: (message) => logger.info(message.trim()) }, // Stream HTTP logs to Winston
+    stream: { write: (message) => logger.info(message.trim()) },
   })
 );
 
@@ -101,7 +97,7 @@ apiRouter.post("/register", async (req, res) => {
     });
 
     const verificationLink = `${BASE_URL}/verify/${verificationToken}`;
-    logger.info(`Verification link generated for user: ${email}`);
+    logger.info(`User created: ${email}, Verification link: ${verificationLink}`);
 
     res.status(201).json({
       message: "User registered. Please check your email for verification.",
@@ -181,7 +177,7 @@ apiRouter.post("/login", async (req, res) => {
   }
 });
 
-// Send-Message Route (Logging Enhanced)
+// Send-Message Route
 apiRouter.post("/send-message", async (req, res) => {
   const { phoneNumber } = req.body;
 
@@ -244,43 +240,8 @@ apiRouter.post("/send-message", async (req, res) => {
   }
 });
 
-apiRouter.get("/dashboard", authenticate, (req, res) => {
-  logger.info(`Dashboard accessed by user: ${req.user.email}`);
-  res.json({ message: "This is protected dashboard data.", user: req.user });
-});
-
-// Routes and App Start (No Changes Beyond Logging)
+// Remaining Routes and App Initialization
 app.use("/API", apiRouter);
-
-app.get("/login", (req, res) => {
-  res.render("index", { baseUrl: BASE_URL });
-});
-
-app.get("/dashboard", (req, res) => {
-  res.render("dashboard", { baseUrl: BASE_URL });
-});
-
-app.get("/verify/:token", async (req, res) => {
-  try {
-    const { token } = req.params;
-
-    const user = await User.findOne({ verificationToken: token });
-    if (!user) {
-      logger.warn("Invalid or expired token access attempted");
-      return res.status(404).render("invalid-token", {
-        title: "Invalid or Expired Token",
-        baseUrl: BASE_URL,
-      });
-    }
-
-    res.render("verify", { token, baseUrl: BASE_URL });
-  } catch (error) {
-    logger.error("Error during token verification", { error: error.message });
-    res
-      .status(500)
-      .send("<h1>An error occurred while processing your request.</h1>");
-  }
-});
 
 app.use((req, res) => {
   logger.warn(`404 error: URL not found ${req.originalUrl}`);
