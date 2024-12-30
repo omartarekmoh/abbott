@@ -13,6 +13,9 @@ const path = require("path");
 const { createLogger, format, transports } = require("winston");
 const morgan = require("morgan");
 
+const { LibreLinkUpClient } = require('@diakem/libre-link-up-api-client');
+
+
 const app = express();
 const apiRouter = express.Router();
 
@@ -99,6 +102,49 @@ apiRouter.get("/user", async (req, res) => {
     res.status(500).json({ success: false, error: "An error occurred while fetching the user data." });
   }
 });
+
+apiRouter.get('/user_libre', async (req, res) => {
+  try {
+    // Extract username and password from the request
+    const { username, password } = req.query; // Use req.body if the data is sent via POST or PUT
+
+    // Validate that both username and password are provided
+    if (!username || !password) {
+      logger.warn('Missing username or password in request');
+      return res.status(400).json({
+        success: false,
+        error: 'Missing "username" or "password" in request parameters.',
+      });
+    }
+
+    logger.info('Initializing LibreLinkUp client with provided credentials');
+
+    // Initialize the LibreLinkUp client
+    const { read } = LibreLinkUpClient({
+      username,
+      password,
+      clientVersion: '4.9.0',
+    });
+
+    // Call the read function to fetch data
+    const libreData = await read();
+
+    logger.info('LibreLinkUp data retrieved successfully', { libreData });
+
+    // Return LibreLinkUp data
+    res.status(200).json({
+      success: true,
+      data: libreData,
+    });
+  } catch (error) {
+    logger.error('Error retrieving LibreLinkUp data', { error: error.message });
+    res.status(401).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 
 apiRouter.post("/register", async (req, res) => {
   try {
