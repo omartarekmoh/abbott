@@ -300,7 +300,7 @@ app.get("/verify/:token", async (req, res) => {
 });
 
 app.use((req, res) => {
-  logger.warn(404 error: URL not found ${req.originalUrl});
+  logger.warn(`404 error: URL not found ${req.originalUrl}`);
   res.status(404).render("404", { title: "Page Not Found", baseUrl: BASE_URL });
 });
 
