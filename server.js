@@ -304,7 +304,7 @@ apiRouter.post("/send-message", async (req, res) => {
     if (process.env.NODE_ENV === "production") {
       messageResponse = await twilioClient.messages.create({
         body: message,
-        from: TWILLIO_NUM,
+        from: "Abbott Libre Bot",
         to: `+${phoneNumber}`,
       });
     } else {
