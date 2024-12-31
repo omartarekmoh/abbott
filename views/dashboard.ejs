@@ -64,6 +64,7 @@
 
     async function loadDashboard() {
       const token = localStorage.getItem('token');
+      // alert(token)
       const message = new URLSearchParams(window.location.search).get('message');
       const type = new URLSearchParams(window.location.search).get('type'); // 'success' or 'error'
 
@@ -72,6 +73,7 @@
       }
 
       if (!token) {
+        // alert("none")
         window.location.href = `${baseUrl}/login`;
         return;
       }
@@ -95,6 +97,7 @@
           window.location.href = `${baseUrl}/login`;
         }
       } catch (error) {
+        // alert(error);
         console.error('Error loading dashboard:', error);
         window.location.href = `${baseUrl}/login`;
       }

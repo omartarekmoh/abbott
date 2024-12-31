@@ -51,7 +51,6 @@ app.use(
   })
 );
 
-// Authentication middleware
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
   if (!token) {
@@ -61,12 +60,22 @@ const authenticate = (req, res, next) => {
 
   try {
     const verified = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Additional checks can be implemented here, e.g., user roles or permissions
     req.user = verified;
     logger.info(`Authenticated user: ${req.user.email}`);
     next();
   } catch (error) {
     logger.error("Invalid token access attempt", { error: error.message });
-    return res.status(400).json({ message: "Invalid token." });
+    
+    // More detailed error messages (optional)
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired. Please log in again." });
+    } else if (error.name === "JsonWebTokenError") {
+      return res.status(400).json({ message: "Malformed token. Access denied." });
+    } else {
+      return res.status(400).json({ message: "Invalid token." });
+    }
   }
 };
 
@@ -77,6 +86,24 @@ const TWILLIO_NUM = process.env.TWILLIO_NUM;
 const twilioClient = twilio(TWILLIO_SID, TWILLIO_TOKEN);
 
 // Routes
+apiRouter.get("/dashboard",authenticate, async (req, res) => {
+  try {
+    const user = req.user;
+
+    res.status(200).json({
+      success: true,
+      user,
+      message: "Dashboard data fetched successfully",
+    });
+  } catch (error) {
+    logger.error("Error fetching dashboard data", { error: error.message });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch dashboard data. Please try again later.",
+    });
+  }
+});
+
 apiRouter.get("/user", async (req, res) => {
   try {
     const { phoneNumber } = req.query;
