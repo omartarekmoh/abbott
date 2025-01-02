@@ -12,7 +12,7 @@ const cors = require("cors");
 const path = require("path");
 const { createLogger, format, transports } = require("winston");
 const morgan = require("morgan");
-
+const WebSocket = require("ws");
 const { LibreLinkUpClient } = require('@diakem/libre-link-up-api-client');
 
 
@@ -21,6 +21,8 @@ const apiRouter = express.Router();
 
 const PORT = process.env.PORT || 9090;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const SERVER_2_WS_URL = "wss://af829a6a-bf37-46af-be69-2490e65e1a5d-00-2gn9zyi2n3qvf.pike.replit.dev/user-login";
+
 
 // Winston Logger Configuration
 const logger = createLogger({
@@ -50,6 +52,26 @@ app.use(
     stream: { write: (message) => logger.info(message.trim()) },
   })
 );
+
+async function sendLoginDataToServer2(phoneNumber, name) {
+  const ws = new WebSocket(SERVER_2_WS_URL);
+
+  ws.on("open", () => {
+      const message = {
+          event: "user_login",
+          phoneNumber: phoneNumber,
+          name: name,
+      };
+
+      ws.send(JSON.stringify(message));
+      console.log("Login data sent to Server 2:", message);
+      ws.close();
+  });
+
+  ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
+  });
+}
 
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
@@ -268,6 +290,8 @@ apiRouter.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
+    await sendLoginDataToServer2(user.phoneNumber, user.name);
+
     logger.info(`User logged in successfully: ${email}`);
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
@@ -304,7 +328,8 @@ apiRouter.post("/send-message", async (req, res) => {
     if (process.env.NODE_ENV === "production") {
       messageResponse = await twilioClient.messages.create({
         body: message,
-        from: "Abbott Libre Bot",
+        from: `LibreBot`, 
+        // from_: "Abbott Libre Bot", 
         to: `+${phoneNumber}`,
       });
     } else {
