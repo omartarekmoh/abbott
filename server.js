@@ -20,8 +20,9 @@ const app = express();
 const apiRouter = express.Router();
 
 const PORT = process.env.PORT || 9090;
+const bitly = new BitlyClient("d626687a18a237ac4277100c14d987ef6c4b8768"); // Store token in environment variables
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
-const SERVER_2_WS_URL = "wss://af829a6a-bf37-46af-be69-2490e65e1a5d-00-2gn9zyi2n3qvf.pike.replit.dev/user-login";
+const SERVER_2_WS_URL = "wss://af829a6a-bf37-46af-be69-2490e65e1a5d-00-2gn9zyi2n3qvf.pike.replit.dev/user";
 
 
 // Winston Logger Configuration
@@ -53,7 +54,7 @@ app.use(
   })
 );
 
-async function sendLoginDataToServer2(phoneNumber, name) {
+async function sendLoginDataToServer(phoneNumber, name) {
   const ws = new WebSocket(SERVER_2_WS_URL);
 
   ws.on("open", () => {
@@ -72,6 +73,26 @@ async function sendLoginDataToServer2(phoneNumber, name) {
       console.error("WebSocket error:", error);
   });
 }
+
+async function sendConsetAvailable(phoneNumber) {
+  const ws = new WebSocket(SERVER_2_WS_URL);
+
+  ws.on("open", () => {
+      const message = {
+          event: "user_conset",
+          phoneNumber: phoneNumber,
+      };
+
+      ws.send(JSON.stringify(message));
+      console.log("Login data sent to Server 2:", message);
+      ws.close();
+  });
+
+  ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
+  });
+}
+
 
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
@@ -254,6 +275,7 @@ apiRouter.post("/verify/:token", async (req, res) => {
     user.marketingConsent = marketing == "1" ? true : false;
     user.consentGiven = consent == "1" ? true : false;
     await user.save();
+    sendConsetAvailable(user.phoneNumber);
 
     logger.info(`User verified successfully: ${user.email}`);
     res.status(200).json({
@@ -290,7 +312,7 @@ apiRouter.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    await sendLoginDataToServer2(user.phoneNumber, user.name);
+    await sendLoginDataToServer(user.phoneNumber, user.name);
 
     logger.info(`User logged in successfully: ${email}`);
     res.status(200).json({ message: "Login successful", token });
@@ -320,7 +342,19 @@ apiRouter.post("/send-message", async (req, res) => {
       session,
     });
 
-    const message = `Please give us your consent by following this link: ${BASE_URL}/verify/${verificationToken}`;
+    const longUrl = `${BASE_URL}/verify/${verificationToken}`;
+
+    // Shorten the URL
+    let shortUrl = longUrl;
+    try {
+      const response = await bitly.shorten(longUrl);
+      shortUrl = response.link;
+      logger.info("URL shortened successfully", { shortUrl });
+    } catch (bitlyError) {
+      logger.error("Failed to shorten URL", { error: bitlyError.message });
+    }
+
+    const message = `Please give us your consent by following this link: ${shortUrl}`;
     logger.info("Generated message", { message });
 
     let messageResponse = null;
@@ -329,7 +363,6 @@ apiRouter.post("/send-message", async (req, res) => {
       messageResponse = await twilioClient.messages.create({
         body: message,
         from: `+13059306829`, 
-        // from_: "Abbott Libre Bot", 
         to: `+${phoneNumber}`,
       });
     } else {
