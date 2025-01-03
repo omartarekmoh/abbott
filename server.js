@@ -79,7 +79,7 @@ async function sendConsetAvailable(phoneNumber) {
 
   ws.on("open", () => {
       const message = {
-          event: "user_conset",
+          event: "user_consent",
           phoneNumber: phoneNumber,
       };
 
