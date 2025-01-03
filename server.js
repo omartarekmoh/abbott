@@ -14,7 +14,7 @@ const { createLogger, format, transports } = require("winston");
 const morgan = require("morgan");
 const WebSocket = require("ws");
 const { LibreLinkUpClient } = require('@diakem/libre-link-up-api-client');
-
+const BitlyClient = require("bitly").BitlyClient;
 
 const app = express();
 const apiRouter = express.Router();
