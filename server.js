@@ -364,7 +364,7 @@ apiRouter.post("/send-message", async (req, res) => {
       messageResponse = await twilioClient.messages.create({
         body: message,
         from: `+13059306829`, 
-        to: "+201069472545",
+        to: `${formattedPhoneNumber}`,
       });
     } else {
       logger.info("Message sending skipped in development environment.");
