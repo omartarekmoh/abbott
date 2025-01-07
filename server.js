@@ -360,10 +360,11 @@ apiRouter.post("/send-message", async (req, res) => {
     let messageResponse = null;
 
     if (process.env.NODE_ENV === "production") {
+      const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
       messageResponse = await twilioClient.messages.create({
         body: message,
         from: `Abbott`, 
-        to: `+${phoneNumber}`,
+        to: `${formattedPhoneNumber}`,
       });
     } else {
       logger.info("Message sending skipped in development environment.");
