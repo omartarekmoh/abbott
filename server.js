@@ -228,7 +228,7 @@ apiRouter.post("/register", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationToken = crypto.randomBytes(4).toString("hex");
 
     const user = await User.create({
       name,
