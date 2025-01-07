@@ -15,6 +15,9 @@ const morgan = require("morgan");
 const WebSocket = require("ws");
 const { LibreLinkUpClient } = require('@diakem/libre-link-up-api-client');
 const BitlyClient = require("bitly").BitlyClient;
+const axios = require("axios");
+
+
 
 const app = express();
 const apiRouter = express.Router();
@@ -54,13 +57,13 @@ app.use(
   })
 );
 
-async function sendLoginDataToServer(phoneNumber, name) {
+async function sendLoginDataToServer( name) {
   const ws = new WebSocket(SERVER_2_WS_URL);
 
   ws.on("open", () => {
       const message = {
           event: "user_login",
-          phoneNumber: phoneNumber,
+          // phoneNumber: phoneNumber,
           name: name,
       };
 
@@ -91,6 +94,69 @@ async function sendConsetAvailable(phoneNumber) {
   ws.on("error", (error) => {
       console.error("WebSocket error:", error);
   });
+}
+
+const LIBRE_BASE_URL = "https://api.libreview.io";
+
+// Utility to login via Libre API
+async function libreLogin(email, password) {
+  let baseUrl = process.env.LIBRE_BASE_URL || "https://api.libreview.io";
+  const loginPayload = { email, password };
+  const headers = {
+      "accept-encoding": "gzip",
+      "cache-control": "no-cache",
+      connection: "Keep-Alive",
+      "content-type": "application/json",
+      product: "llu.android",
+      version: "4.12.0",
+  };
+
+  try {
+      // Attempt login
+      let response = await axios.post(`${baseUrl}/llu/auth/login`, loginPayload, { headers });
+
+      // Handle region redirection
+      if (response.data?.data?.redirect) {
+          const region = response.data.data.region;
+          baseUrl = `https://api-${region}.libreview.io`;
+          response = await axios.post(`${baseUrl}/llu/auth/login`, loginPayload, { headers });
+      }
+
+      // Check for authentication error
+      if (response.data?.status === 2 && response.data?.error?.message === "notAuthenticated") {
+          return { status: 401, message: "Invalid email or password" }; // Return a response-like object
+      }
+
+      // Extract and return relevant data
+      const data = response.data.data;
+      const jwtToken = data.authTicket.token;
+      const userId = data.user.id;
+      const accountId = crypto.createHash("sha256").update(userId).digest("hex");
+
+      headers["Authorization"] = `Bearer ${jwtToken}`;
+      headers["Account-Id"] = accountId;
+
+      return { status: 200, jwtToken, accountId, headers, baseUrl }; // Return success response
+  } catch (error) {
+      console.error("Error during Libre login:", error.message);
+      return { status: 500, message: "Internal server error during login" }; // Return server error response
+  }
+}
+
+// Utility to get user data from Libre API
+async function getUserData(headers, baseUrl) {
+    const connectionsUrl = `${baseUrl}/llu/connections`;
+
+    const response = await axios.get(connectionsUrl, { headers });
+    if (response.status === 200 && response.data.data.length > 0) {
+        const connection = response.data.data[0];
+        const patientId = connection.patientId;
+        const glucoseMeasurement = connection.glucoseMeasurement;
+        const name = `${connection.firstName} ${connection.lastName}`;
+        return { patientId, glucoseMeasurement, name };
+    } else {
+        throw new Error("No connections found or failed to fetch connections.");
+    }
 }
 
 
@@ -291,34 +357,45 @@ apiRouter.post("/verify/:token", async (req, res) => {
 
 apiRouter.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+      const { email, password } = req.body;
 
-    logger.info(`Login attempt for email: ${email}`);
-    const user = await User.findOne({ email });
-    if (!user) {
-      logger.warn("Login failed: Invalid email");
-      return res.status(400).json({ message: "Invalid email or password" });
-    }
+      logger.info(`Login attempt for email: ${email}`);
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      logger.warn("Login failed: Invalid password");
-      return res.status(400).json({ message: "Invalid email or password" });
-    }
+      // Step 1: Login via Libre API
+      const loginResult = await libreLogin(email, password);
 
-    const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+      if (loginResult.status === 401) {
+          logger.warn("Login failed: Invalid email or password");
+          return res.status(401).json({ message: loginResult.message });
+      }
 
-    await sendLoginDataToServer(user.phoneNumber, user.name);
+      if (loginResult.status === 500) {
+          logger.error("Error during Libre login:", loginResult.message);
+          return res.status(500).json({ message: "Internal server error. Please try again later." });
+      }
 
-    logger.info(`User logged in successfully: ${email}`);
-    res.status(200).json({ message: "Login successful", token });
+      // Step 2: Get user data
+      const { jwtToken, accountId, headers, baseUrl } = loginResult;
+      const userData = await getUserData(headers, baseUrl);
+
+      // Step 3: Generate a local JWT for your app session
+      const token = jwt.sign(
+          { email, accountId, libreJwt: jwtToken, glucoseData: userData.glucoseMeasurement, name: userData.name },
+          process.env.JWT_SECRET,
+          { expiresIn: "1h" }
+      );
+
+      sendLoginDataToServer(userData.name)
+
+      logger.info(`User logged in successfully: ${email}`);
+      res.status(200).json({
+          message: "Login successful",
+          token,
+          userData,
+      });
   } catch (error) {
-    logger.error("Error during login", { error: error.message });
-    res.status(500).json({ error: error.message });
+      logger.error("Error during login:", error.message);
+      res.status(500).json({ message: "Internal server error. Please try again later." });
   }
 });
 
