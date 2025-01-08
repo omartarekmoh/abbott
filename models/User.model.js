@@ -6,7 +6,6 @@ const userSchema = mongoose.Schema(
       type: String,
       required: [true, "Please enter a phone number"],
       unique: true,
-      // match: [/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number"], // Example regex for E.164 format
     },
     name: {
       type: String,
@@ -14,13 +13,15 @@ const userSchema = mongoose.Schema(
     },
     email: {
       type: String,
-      unique: true,
       sparse: true,
       match: [/.+@.+\..+/, "Please enter a valid email"],
     },
     password: {
       type: String,
-      minlength: [6, "Password must be at least 6 characters long"],
+    },
+    loggedIn: {
+      type: Boolean,
+      default: false, // Default is false; set to true on successful login
     },
     isVerified: {
       type: Boolean,
@@ -29,38 +30,33 @@ const userSchema = mongoose.Schema(
     verificationToken: {
       type: String,
     },
-    // New fields for consent
     consentGiven: {
       type: Boolean,
-      default: false, // Default to false until user provides consent
+      default: false,
     },
     marketingConsent: {
       type: Boolean,
-      default: false, // Default to false; user can opt-in to receive marketing
+      default: false,
     },
-    consentGivenAt: {
-      type: Date, // Timestamp of when consent was provided
-    },
-    marketingConsentAt: {
-      type: Date, // Timestamp of when marketing consent was provided (if applicable)
-    },
-    // Additional metadata (optional)
     lastLogin: {
-      type: Date, // Timestamp of the last login
+      type: Date,
     },
   },
   {
-    timestamps: true, // Automatically add createdAt and updatedAt timestamps
+    timestamps: true,
   }
 );
 
 const User = mongoose.model("User", userSchema);
 
-// Ensure the sparse unique index is created
+// Ensure the phoneNumber is indexed as unique
 User.init().then(() => {
   mongoose.connection.db
     .collection("users")
-    .createIndex({ email: 1 }, { unique: true, sparse: true });
+    .createIndex({ phoneNumber: 1 }, { unique: true })
+    .then(() => console.log("Unique index created on phoneNumber"))
+    .catch((err) => console.error("Error creating index on phoneNumber:", err));
 });
 
 module.exports = User;
+ 

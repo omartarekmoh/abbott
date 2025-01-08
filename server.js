@@ -212,30 +212,53 @@ apiRouter.get("/dashboard",authenticate, async (req, res) => {
     });
   }
 });
-
-apiRouter.get("/user", async (req, res) => {
+   
+apiRouter.get("/lookup-phone", async (req, res) => {
   try {
     const { phoneNumber } = req.query;
 
+    // Debug: Log the incoming query parameter
+    console.log("Raw query parameter received:", req.query.phoneNumber);
+
     if (!phoneNumber) {
-      logger.warn('Get user failed: Missing "phoneNumber" in query parameters');
+      logger.warn('Lookup failed: Missing "phoneNumber" in query parameters');
       return res.status(400).json({ error: 'Missing "phoneNumber" in query parameters.' });
     }
 
-    logger.info(`Fetching user data for phone number: ${phoneNumber}`);
+    // Normalize the phone number
+    const normalizedPhoneNumber = phoneNumber.trim().startsWith('+')
+      ? phoneNumber.trim()
+      : `+${phoneNumber.trim()}`;
 
-    const user = await User.findOne({ phoneNumber });
+    logger.info(`Looking up user with phone number: ${normalizedPhoneNumber}`);
+
+    const user = await User.findOne({ phoneNumber: normalizedPhoneNumber });
+
+    console.log("Found user:", user);
 
     if (!user) {
-      logger.warn(`No user found with phone number: ${phoneNumber}`);
-      return res.status(404).json({success: false, message: "User not found." });
+      logger.warn(`No user found with phone number: ${normalizedPhoneNumber}`);
+      return res.status(404).json({ success: false, message: "User not found." });
     }
 
-    logger.info(`User data retrieved successfully for phone number: ${phoneNumber}`, { user });
-    res.status(200).json({ success: true, user });
+    // Determine consent and login status
+    const hasConsented = user.consentGiven || false;
+    const isLoggedIn = !!(user.email && user.password);
+
+    logger.info(`User lookup successful for phone number: ${normalizedPhoneNumber}`, { user });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        phoneNumber: user.phoneNumber,
+        hasConsented,
+        isLoggedIn,
+        email: user.email || null,
+      },
+    });
   } catch (error) {
-    logger.error("Error retrieving user by phone number", { error: error.message });
-    res.status(500).json({ success: false, error: "An error occurred while fetching the user data." });
+    logger.error("Error during phone number lookup", { error: error.message });
+    res.status(500).json({ success: false, error: "An error occurred while looking up the phone number." });
   }
 });
 
