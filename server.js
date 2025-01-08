@@ -317,7 +317,7 @@ apiRouter.post("/register", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationToken = crypto.randomBytes(4).toString("hex");
+    const verificationToken = crypto.randomBytes(32).toString("hex");
 
     const user = await User.create({
       name,
@@ -435,17 +435,24 @@ apiRouter.post("/send-message", async (req, res) => {
 
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
-    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    let user = await User.findOne({ phoneNumber: formattedPhoneNumber });
 
-    const user = await User.create([{ phoneNumber, verificationToken }], {
-      session,
-    });
+    if (!user) {
+      // Create a new user if not found
+      const verificationToken = crypto.randomBytes(8).toString("hex");
+      const newUser = await User.create(
+        [{ phoneNumber: formattedPhoneNumber, verificationToken }],
+        { session }
+      );
+      user = newUser[0];
+    }
 
-    const longUrl = `${BASE_URL}/verify/${verificationToken}`;
-
-    // Shorten the URL
+    const longUrl = `${BASE_URL}/verify/${user.verificationToken}`;
     let shortUrl = longUrl;
+
     try {
       const response = await bitly.shorten(longUrl);
       shortUrl = response.link;
@@ -460,11 +467,10 @@ apiRouter.post("/send-message", async (req, res) => {
     let messageResponse = null;
 
     if (process.env.NODE_ENV === "production") {
-      const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
       messageResponse = await twilioClient.messages.create({
         body: message,
-        from: `+13059306829`, 
-        to: `${formattedPhoneNumber}`,
+        from: `+13059306829`,
+        to: formattedPhoneNumber,
       });
     } else {
       logger.info("Message sending skipped in development environment.");
@@ -473,15 +479,16 @@ apiRouter.post("/send-message", async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    logger.info("Message sent successfully and user added", {
-      user: user[0],
+    logger.info("Message sent successfully", {
+      user,
       messageResponse: messageResponse || "Message not sent (development mode)",
     });
+
     res.status(200).send({
       success: true,
-      message: "User added and message sent successfully!",
+      message: "Message sent successfully!",
       data: {
-        user: user[0],
+        user,
         twilioResponse:
           messageResponse || "Message not sent (development mode)",
       },
