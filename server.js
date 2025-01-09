@@ -369,6 +369,7 @@ apiRouter.post("/verify/:token", async (req, res) => {
     logger.info(`User verified successfully: ${user.email}`);
     res.status(200).json({
       message: "Thank you for your consent! You can now log in.",
+      phoneNumber: user.phoneNumber // Send phone number in response
     });
   } catch (error) {
     logger.error("Error during verification", { error: error.message });
@@ -379,46 +380,107 @@ apiRouter.post("/verify/:token", async (req, res) => {
 });
 
 apiRouter.post("/login", async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-      const { email, password } = req.body;
+    const { email, password, phoneNumber } = req.body;
 
-      logger.info(`Login attempt for email: ${email}`);
-
-      // Step 1: Login via Libre API
-      const loginResult = await libreLogin(email, password);
-
-      if (loginResult.status === 401) {
-          logger.warn("Login failed: Invalid email or password");
-          return res.status(401).json({ message: loginResult.message });
-      }
-
-      if (loginResult.status === 500) {
-          logger.error("Error during Libre login:", loginResult.message);
-          return res.status(500).json({ message: "Internal server error. Please try again later." });
-      }
-
-      // Step 2: Get user data
-      const { jwtToken, accountId, headers, baseUrl } = loginResult;
-      const userData = await getUserData(headers, baseUrl);
-
-      // Step 3: Generate a local JWT for your app session
-      const token = jwt.sign(
-          { email, accountId, libreJwt: jwtToken, glucoseData: userData.glucoseMeasurement, name: userData.name },
-          process.env.JWT_SECRET,
-          { expiresIn: "1h" }
-      );
-
-      sendLoginDataToServer(userData.name)
-
-      logger.info(`User logged in successfully: ${email}`);
-      res.status(200).json({
-          message: "Login successful",
-          token,
-          userData,
+    // Validate required fields
+    if (!email || !password) {
+      logger.warn("Login failed: Missing required fields");
+      return res.status(400).json({ 
+        message: "Email and password are required",
+        missingFields: {
+          email: !email,
+          password: !password
+        }
       });
+    }
+
+    logger.info(`Login attempt for email: ${email}`);
+
+    // Step 1: Login via Libre API
+    const loginResult = await libreLogin(email, password);
+
+    if (loginResult.status === 401) {
+      logger.warn("Login failed: Invalid email or password");
+      return res.status(401).json({ message: loginResult.message });
+    }
+
+    if (loginResult.status === 500) {
+      logger.error("Error during Libre login:", loginResult.message);
+      return res.status(500).json({ message: "Internal server error. Please try again later." });
+    }
+
+    // Step 2: Get user data
+    const { jwtToken, accountId, headers, baseUrl } = loginResult;
+    const userData = await getUserData(headers, baseUrl);
+
+    // Step 3: Handle user in database
+    let user;
+    if (phoneNumber) {
+      const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      user = await User.findOne({ phoneNumber: formattedPhoneNumber });
+
+      if (user) {
+        // Update existing user with new credentials if they don't exist
+        if (!user.email || !user.password) {
+          await User.updateOne(
+            { phoneNumber: formattedPhoneNumber },
+            { 
+              email,
+              password, // Note: Ensure password is properly hashed before storing
+              loggedIn: true
+            },
+            { session }
+          );
+        }
+      } 
+      else {
+        // Create new user with verification token
+        const verificationToken = crypto.randomBytes(8).toString("hex");
+        const newUser = await User.create([{
+          phoneNumber: formattedPhoneNumber,
+          email,
+          password, // Note: Ensure password is properly hashed before storing
+          verificationToken,
+          lastLogin: new Date()
+        }], { session });
+        user = newUser[0];
+      }
+    }
+
+    // Step 4: Generate a local JWT for your app session
+    const token = jwt.sign(
+      {
+        email,
+        accountId,
+        libreJwt: jwtToken,
+        glucoseData: userData.glucoseMeasurement,
+        name: userData.name,
+        phoneNumber: user?.phoneNumber
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    await sendLoginDataToServer(userData.name);
+    await session.commitTransaction();
+
+    logger.info(`User logged in successfully: ${email}`);
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      userData,
+      phoneNumber: user?.phoneNumber
+    });
   } catch (error) {
-      logger.error("Error during login:", error.message);
-      res.status(500).json({ message: "Internal server error. Please try again later." });
+    await session.abortTransaction();
+    logger.error("Error during login:", error.message);
+    res.status(500).json({ message: "Internal server error. Please try again later." });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -440,8 +502,80 @@ apiRouter.post("/send-message", async (req, res) => {
     const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
     let user = await User.findOne({ phoneNumber: formattedPhoneNumber });
 
+    // If user exists and has already consented
+    if (user && user.consentGiven) {
+      if (user.loggedIn) {
+        // User has consented and is logged in
+        const token = jwt.sign(
+          {
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            name: user.name
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: "1h" }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).send({
+          success: true,
+          message: "User already registered and logged in",
+          isLoggedIn: true,
+          token,
+          user: {
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            name: user.name
+          }
+        });
+      } else {
+        // User has consented but is not logged in
+        const longUrl = `${BASE_URL}/login?phoneNumber=${encodeURIComponent(formattedPhoneNumber)}`;
+        let shortUrl = longUrl;
+
+        try {
+          const response = await bitly.shorten(longUrl);
+          shortUrl = response.link;
+          logger.info("Login URL shortened successfully", { shortUrl });
+        } catch (bitlyError) {
+          logger.error("Failed to shorten login URL", { error: bitlyError.message });
+        }
+
+        const message = `You are not logged in. Please log in using this link: ${shortUrl}`;
+        logger.info("Generated login message", { message });
+
+        let messageResponse = null;
+
+        if (process.env.NODE_ENV === "production") {
+          messageResponse = await twilioClient.messages.create({
+            body: message,
+            from: `${TWILLIO_NUM}`,
+            to: formattedPhoneNumber,
+          });
+        } else {
+          logger.info("Message sending skipped in development environment.");
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).send({
+          success: true,
+          message: "Login link sent successfully!",
+          needsLogin: true,
+          data: {
+            user,
+            loginUrl: shortUrl,
+            twilioResponse: messageResponse || "Message not sent (development mode)",
+          },
+        });
+      }
+    }
+
+    // If user doesn't exist or hasn't consented, proceed with consent flow
     if (!user) {
-      // Create a new user if not found
       const verificationToken = crypto.randomBytes(8).toString("hex");
       const newUser = await User.create(
         [{ phoneNumber: formattedPhoneNumber, verificationToken }],
@@ -469,7 +603,7 @@ apiRouter.post("/send-message", async (req, res) => {
     if (process.env.NODE_ENV === "production") {
       messageResponse = await twilioClient.messages.create({
         body: message,
-        from: `+13059306829`,
+        from: `${TWILLIO_NUM}`,
         to: formattedPhoneNumber,
       });
     } else {
@@ -486,11 +620,11 @@ apiRouter.post("/send-message", async (req, res) => {
 
     res.status(200).send({
       success: true,
-      message: "Message sent successfully!",
+      message: "Consent link sent successfully!",
+      needsConsent: true,
       data: {
         user,
-        twilioResponse:
-          messageResponse || "Message not sent (development mode)",
+        twilioResponse: messageResponse || "Message not sent (development mode)",
       },
     });
   } catch (error) {

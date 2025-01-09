@@ -84,26 +84,34 @@
     });
 
     form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const token = window.location.pathname.split("/").pop();
-      const formData = { consent: consentInput.value, marketing: marketingInput.value };
+  e.preventDefault();
+  const token = window.location.pathname.split("/").pop();
+  const formData = { consent: consentInput.value, marketing: marketingInput.value };
 
-      try {
-        const response = await fetch(`${baseUrl}/api/verify/${token}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        const data = await response.json();
-        if (response.ok) {
-          window.location.href = `${baseUrl}/login?message=${encodeURIComponent(data.message)}&type=success`;
-        } else {
-          displayNotification(data.message || "An error occurred. Please try again.", "error");
-        }
-      } catch (error) {
-        displayNotification("An unexpected error occurred. Please try again.", "error");
-      }
+  try {
+    const response = await fetch(`${baseUrl}/api/verify/${token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
     });
+    const data = await response.json();
+    
+    if (response.ok) {
+      // Add phone number to redirect URL if available
+      const redirectUrl = new URL(`${baseUrl}/login`);
+      redirectUrl.searchParams.append('message', data.message);
+      redirectUrl.searchParams.append('type', 'success');
+      if (data.phoneNumber) {
+        redirectUrl.searchParams.append('phoneNumber', data.phoneNumber);
+      }
+      window.location.href = redirectUrl.toString();
+    } else {
+      displayNotification(data.message || "An error occurred. Please try again.", "error");
+    }
+  } catch (error) {
+    displayNotification("An unexpected error occurred. Please try again.", "error");
+  }
+});
   </script>
 </body>
 </html>

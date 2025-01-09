@@ -23,10 +23,10 @@
       display: block;
     }
     .notification.success {
-      background-color: #4caf50; /* Green for success */
+      background-color: #4caf50;
     }
     .notification.error {
-      background-color: #f44336; /* Red for error */
+      background-color: #f44336;
     }
   </style>
 </head>
@@ -46,8 +46,8 @@
       <div class="form-group">
         <input type="password" id="password" placeholder="Password" required>
       </div>
+      <input type="hidden" id="phone">
       <button type="submit" class="btn-primary">Log In</button>
-      <!-- <a href="<%= baseUrl %>/forgot-password" class="forgot-password">Forgot Password?</a> -->
     </form>
   </div>
   <script>
@@ -56,8 +56,6 @@
     function displayNotification(message, type) {
       const notification = document.getElementById("notification");
       notification.textContent = message;
-
-      // Add appropriate class for the notification type
       notification.className = `notification show ${type}`;
 
       setTimeout(() => {
@@ -65,28 +63,35 @@
       }, 4000);
     }
 
-    // Display notification from query parameter if present
-    const message = new URLSearchParams(window.location.search).get('message');
-    const messageType = new URLSearchParams(window.location.search).get('type'); // 'success' or 'error'
+    // Get URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    const messageType = urlParams.get('type');
+    const phoneNumber = urlParams.get('phoneNumber');
+
+    // Handle notification message
     if (message) {
-      displayNotification(decodeURIComponent(message), messageType || 'g');
+      displayNotification(decodeURIComponent(message), messageType || 'success');
     }
 
-    async function loginUser(email, password) {
+    // Set phone number if it exists in URL parameters
+    if (phoneNumber) {
+      document.getElementById('phone').value = phoneNumber;
+    }
+
+    async function loginUser(email, password, phoneNumber) {
       try {
         const response = await fetch(`${baseUrl}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, phoneNumber }),
         });
         const data = await response.json();
 
         if (response.ok) {
-          // On success, display green notification and redirect to dashboard
           localStorage.setItem('token', data.token);
           window.location.href = `${baseUrl}/dashboard?message=${encodeURIComponent(data.message)}&type=success`;
         } else {
-          // On error, display red notification
           displayNotification(data.message || 'Invalid email or password.', 'error');
         }
       } catch (error) {
@@ -98,7 +103,8 @@
       e.preventDefault();
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
-      await loginUser(email, password);
+      const phone = document.getElementById('phone').value;
+      await loginUser(email, password, phone);
     });
   </script>
 </body>
