@@ -608,7 +608,7 @@ apiRouter.post("/send-message", async (req, res) => {
       });
     } else {
       logger.info("Message sending skipped in development environment.");
-    }
+    } 
 
     await session.commitTransaction();
     session.endSession();
