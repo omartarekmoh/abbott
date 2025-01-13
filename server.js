@@ -57,7 +57,7 @@ app.use(
   })
 );
 
-async function sendLoginDataToServer( name) {
+async function sendLoginDataToServer( name, phoneNumber) {
   const ws = new WebSocket(SERVER_2_WS_URL);
 
   ws.on("open", () => {
@@ -465,7 +465,7 @@ apiRouter.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    await sendLoginDataToServer(userData.name);
+    await sendLoginDataToServer(userData.name, user.phoneNumber);
     await session.commitTransaction();
 
     logger.info(`User logged in successfully: ${email}`);
