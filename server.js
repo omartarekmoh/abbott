@@ -63,7 +63,7 @@ async function sendLoginDataToServer( name) {
   ws.on("open", () => {
       const message = {
           event: "user_login",
-          // phoneNumber: phoneNumber,
+          phoneNumber: phoneNumber,
           name: name,
       };
 
