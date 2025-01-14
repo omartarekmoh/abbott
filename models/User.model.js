@@ -59,4 +59,3 @@ User.init().then(() => {
 });
 
 module.exports = User;
- 
