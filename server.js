@@ -148,7 +148,114 @@ async function getUserData(client) {
     return {userName, processedData};
 }
 
-// API Routes
+apiRouter.post("/send-user-info-request", async (req, res) => {
+  const { phoneNumber } = req.body;
+
+  if (!phoneNumber) {
+    return res
+      .status(400)
+      .send({ error: 'Missing "phoneNumber" in request body.' });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const formattedPhoneNumber = phoneNumber.startsWith("+")
+      ? phoneNumber
+      : `+${phoneNumber}`;
+    let user = await User.findOne({ phoneNumber: formattedPhoneNumber });
+
+    if (!user) {
+      user = await User.create(
+        [{ phoneNumber: formattedPhoneNumber, state: "awaiting_details" }],
+        { session }
+      );
+    } else {
+      await User.updateOne(
+        { phoneNumber: formattedPhoneNumber },
+        { state: "awaiting_details" },
+        { session }
+      );
+    }
+
+    const message = `
+To proceed with your request, please reply to this message with the following details:
+
+- Full Name:
+- Email Address:
+- Shipping Address (City, Street, and Postcode):
+
+Thank you for your cooperation.
+    `;
+
+    let messageResponse = null;
+    if (process.env.NODE_ENV === "production") {
+      messageResponse = await twilioClient.messages.create({
+        body: message,
+        from: `${TWILLIO_NUM}`,
+        to: formattedPhoneNumber,
+      });
+    }
+
+    await session.commitTransaction();
+    res.status(200).send({
+      success: true,
+      message: "Request message sent successfully.",
+      data: {
+        user,
+        twilioResponse:
+          messageResponse || "Message not sent (development mode).",
+      },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    logger.error("Error during send-user-info-request", { error: error.message });
+    res.status(500).send({
+      success: false,
+      error: error.message,
+    });
+  } finally {
+    session.endSession();
+  }
+});
+
+apiRouter.post("/sms", async (req, res) => {
+  const from = req.body.From;
+  const body = req.body.Body.trim(); // Full message body
+
+  try {
+    const user = await User.findOne({ phoneNumber: from });
+
+    if (!user) {
+      await twilioClient.messages.create({
+        body: "We could not find your record. Please start over by sending your details.",
+        from: `${TWILLIO_NUM}`,
+        to: from,
+      });
+      return res.status(200).end();
+    }
+
+    if (user.state === "awaiting_details") {
+      await User.updateOne(
+        { phoneNumber: from },
+        { details: body, state: "completed" }
+      );
+
+      await twilioClient.messages.create({
+        body: "We stored your information. Our team will contact you soon. Thanks!",
+        from: `${TWILLIO_NUM}`,
+        to: from,
+      });
+    }
+
+    res.status(200).end();
+  } catch (error) {
+    logger.error("Error handling incoming SMS", { error: error.message });
+    res.status(500).end();
+  }
+});
+
 apiRouter.get("/dashboard", authenticate, async (req, res) => {
   try {
     res.status(200).json({

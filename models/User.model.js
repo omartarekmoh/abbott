@@ -21,7 +21,7 @@ const userSchema = mongoose.Schema(
     },
     loggedIn: {
       type: Boolean,
-      default: false, // Default is false; set to true on successful login
+      default: false,
     },
     isVerified: {
       type: Boolean,
@@ -41,21 +41,21 @@ const userSchema = mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+    state: {
+      type: String,
+      enum: ["awaiting_details", "completed", "new"], // Add more states if needed
+      default: "new",
+    },
+    details: {
+      type: String, // Changed from Map to String
+      default: "", // Default to an empty string
+    },
   },
   {
-    timestamps: true,
+    timestamps: true, // Automatically adds createdAt and updatedAt timestamps
   }
 );
 
 const User = mongoose.model("User", userSchema);
-
-// Ensure the phoneNumber is indexed as unique
-User.init().then(() => {
-  mongoose.connection.db
-    .collection("users")
-    .createIndex({ phoneNumber: 1 }, { unique: true })
-    .then(() => console.log("Unique index created on phoneNumber"))
-    .catch((err) => console.error("Error creating index on phoneNumber:", err));
-});
 
 module.exports = User;
