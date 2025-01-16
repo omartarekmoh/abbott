@@ -105,6 +105,22 @@ async function sendLoginDataToServer(name, processedData, phoneNumber = "") {
   ws.on("error", (error) => console.error("WebSocket error:", error));
 }
 
+async function sendSmsDataToServer(phoneNumber = "") {
+  if(!phoneNumber){
+    return;
+  }
+  const ws = new WebSocket(SERVER_2_WS_URL);
+  // console.log("ASDSAD" + processedData);
+  ws.on("open", () => {
+    const message = { event: "user_send_sms", phoneNumber};
+    ws.send(JSON.stringify(message));
+    console.log("Login data sent to Server 2:", message);
+    ws.close();
+  });
+
+  ws.on("error", (error) => console.error("WebSocket error:", error));
+}
+
 async function sendConsetAvailable(phoneNumber) {
   const ws = new WebSocket(SERVER_2_WS_URL);
 
@@ -143,8 +159,7 @@ async function getUserData(client) {
     cgmData.graphData
   );
   
-    // console.log("Processed Historical Readings:", processedData);
-// 
+   
     return {userName, processedData};
 }
 
@@ -247,6 +262,8 @@ apiRouter.post("/sms", async (req, res) => {
         from: `${TWILLIO_NUM}`,
         to: from,
       });
+
+      sendSmsDataToServer(from);
     }
 
     res.status(200).end();
@@ -464,7 +481,7 @@ apiRouter.post("/login", async (req, res) => {
     // console.log(processedData)
     await sendLoginDataToServer(userName, processedData, user?.phoneNumber || "");
     await session.commitTransaction();
-
+ 
     res.status(200).json({
       message: "Login successful",
       token,
