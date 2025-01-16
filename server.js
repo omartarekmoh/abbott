@@ -225,7 +225,7 @@ Thank you for your cooperation.
     });
 
     logger.info(`sent a replace sensor message to phoneNumber ${formattedPhoneNumber}`);
-    
+
   } catch (error) {
     await session.abortTransaction();
     logger.error("Error during send-user-info-request", { error: error.message });
@@ -239,13 +239,19 @@ Thank you for your cooperation.
 });
 
 apiRouter.post("/sms", async (req, res) => {
+  console.log("Incoming SMS request body:", req.body); // Debug log
+  logger.info("Incoming SMS received", { body: req.body }); // Structured logging
+  
   const from = req.body.From;
   const body = req.body.Body.trim();
 
   try {
+    console.log("Looking for user with phone:", from); // Debug log
     const user = await User.findOne({ phoneNumber: from });
+    console.log("Found user:", user); // Debug log
 
     if (!user) {
+      console.log("No user found, sending error message"); // Debug log
       await twilioClient.messages.create({
         body: "We could not find your record. Please start over by sending your details.",
         from: `${TWILLIO_NUM}`,
@@ -255,6 +261,7 @@ apiRouter.post("/sms", async (req, res) => {
     }
 
     if (user.state === "awaiting_details") {
+      console.log("User is awaiting details, updating record"); // Debug log
       await User.updateOne(
         { phoneNumber: from },
         { details: body, state: "completed" }
@@ -266,12 +273,13 @@ apiRouter.post("/sms", async (req, res) => {
         to: from,
       });
 
-      logger.info(`recived a replace sensor message to phoneNumber ${phoneNumber}`);
+      logger.info(`received a replace sensor message to phoneNumber ${from}`);
       sendSmsDataToServer(from);
     }
 
     res.status(200).end();
   } catch (error) {
+    console.error("Error in /sms endpoint:", error); // Debug log
     logger.error("Error handling incoming SMS", { error: error.message });
     res.status(500).end();
   }
