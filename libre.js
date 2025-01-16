@@ -135,12 +135,14 @@ async function main() {
 
     const patientId = connectionsData[0].patientId;
     const glucoseMeasurement = connectionsData[0];
-
+    
     const cgmData = await client.getCGMData(patientId);
-
+    
     const { fullName: userName, combinedReadings: processedData } =
-      processGlucoseData(glucoseMeasurement, cgmData.graphData);
-
+    processGlucoseData(glucoseMeasurement, cgmData.graphData);
+    
+    // console.log(processedData);
+    
     return processedData;
   } catch (error) {
     console.error("Error:", error.message);

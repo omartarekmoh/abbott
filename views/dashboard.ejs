@@ -26,10 +26,29 @@
       display: block;
     }
     .notification.success {
-      background-color: #4caf50; /* Green for success */
+      background-color: #4caf50;
     }
     .notification.error {
-      background-color: #f44336; /* Red for error */
+      background-color: #f44336;
+    }
+    .login-prompt {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 5px;
+      text-align: center;
+    }
+    .login-button {
+      background-color: #4caf50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .login-button:hover {
+      background-color: #45a049;
     }
   </style>
 </head>
@@ -40,75 +59,115 @@
       <img src="<%= baseUrl %>/images/abbott-logo.png" alt="Abbott Logo" class="logo">
       <img src="<%= baseUrl %>/images/freestyle-logo.png" alt="Freestyle Libre Logo" class="logo">
     </div>
-    <h1 class="success-title">You’re all set!</h1>
+    <h1 class="success-title">You're all set!</h1>
     <img src="<%= baseUrl %>/images/butterfly-icon.png" alt="Butterfly Icon" class="success-icon">
     <p class="success-message">
       Thank you for giving us your consent. A copy of this will be kept on file.<br>
       Please continue your phone conversation.
     </p>
     <div id="user-info" class="user-info"></div>
-    <button class="logout-button" onclick="logout()">Log Out</button>
+    <div id="login-section" class="login-prompt" style="display: none;">
+      <p>Would you like to proceed to login?</p>
+      <button class="login-button" onclick="redirectToLogin()">Go to Login</button>
+    </div>
+    <div id="authenticated-section" style="display: none;">
+      <button class="logout-button" onclick="logout()">Log Out</button>
+    </div>
   </div>
   <script>
     const baseUrl = "<%= baseUrl %>";
 
     function displayNotification(message, type) {
-      const notification = document.getElementById("notification");
-      notification.textContent = message;
-      notification.className = `notification show ${type}`;
+  const notification = document.getElementById("notification");
+  notification.textContent = message;
+  notification.className = `notification show ${type}`;
 
-      setTimeout(() => {
-        notification.classList.remove("show");
-      }, 4000);
-    }
+  setTimeout(() => {
+    notification.classList.remove("show");
+  }, 4000);
+}
 
-    async function loadDashboard() {
-      const token = localStorage.getItem('token');
-      // alert(token)
-      const message = new URLSearchParams(window.location.search).get('message');
-      const type = new URLSearchParams(window.location.search).get('type'); // 'success' or 'error'
+function redirectToLogin() {
+  // Get phone number from URL params or localStorage
+  const urlParams = new URLSearchParams(window.location.search);
+  const phoneNumber = urlParams.get('phoneNumber') || localStorage.getItem('userPhoneNumber');
+  
+  const loginUrl = new URL(`${baseUrl}/login`);
+  if (phoneNumber) {
+    loginUrl.searchParams.append('phoneNumber', phoneNumber);
+  }
+  window.location.href = loginUrl.toString();
+}
 
-      if (message) {
-        displayNotification(decodeURIComponent(message), type || 'error');
-      }
+async function loadDashboard() {
+  const token = localStorage.getItem('token');
+  const message = new URLSearchParams(window.location.search).get('message');
+  const type = new URLSearchParams(window.location.search).get('type');
+  const phoneNumber = new URLSearchParams(window.location.search).get('phoneNumber');
 
-      if (!token) {
-        // alert("none")
-        window.location.href = `${baseUrl}/login`;
-        return;
-      }
+  // Store phone number if available
+  if (phoneNumber) {
+    localStorage.setItem('userPhoneNumber', phoneNumber);
+  }
 
-      try {
-        const response = await fetch(`${baseUrl}/api/dashboard`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  if (message) {
+    displayNotification(decodeURIComponent(message), type || 'error');
+  }
 
-        if (response.ok) {
-          const data = await response.json();
-          const userInfoElement = document.getElementById('user-info');
-          userInfoElement.innerHTML = `
-            <p><strong>Name:</strong> ${data.user.name}</p>
-            <p><strong>Email:</strong> ${data.user.email}</p>
-          `;
-          document.body.classList.remove('hidden');
-        } else {
-          localStorage.removeItem('token');
-          window.location.href = `${baseUrl}/login`;
-        }
-      } catch (error) {
-        // alert(error);
-        console.error('Error loading dashboard:', error);
-        window.location.href = `${baseUrl}/login`;
-      }
-    }
+  document.body.classList.remove('hidden');
 
-    function logout() {
+  if (!token) {
+    // Show the login prompt instead of redirecting
+    document.getElementById('login-section').style.display = 'block';
+    document.getElementById('authenticated-section').style.display = 'none';
+    document.getElementById('user-info').innerHTML = '';
+    return;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/api/dashboard`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const userInfoElement = document.getElementById('user-info');
+      userInfoElement.innerHTML = `
+        <p><strong>Name:</strong> ${data.user.name}</p>
+        <p><strong>Email:</strong> ${data.user.email}</p>
+      `;
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('authenticated-section').style.display = 'block';
+    } else {
+      // Handle invalid token case
       localStorage.removeItem('token');
-      window.location.href = `${baseUrl}/login?message=${encodeURIComponent('You have been logged out successfully.')}&type=success`;
+      document.getElementById('login-section').style.display = 'block';
+      document.getElementById('authenticated-section').style.display = 'none';
+      document.getElementById('user-info').innerHTML = '';
     }
+  } catch (error) {
+    console.error('Error loading dashboard:', error);
+    document.getElementById('login-section').style.display = 'block';
+    document.getElementById('authenticated-section').style.display = 'none';
+    document.getElementById('user-info').innerHTML = '';
+  }
+}
 
-    loadDashboard();
+function logout() {
+  const phoneNumber = localStorage.getItem('userPhoneNumber');
+  localStorage.removeItem('token');
+  
+  const loginUrl = new URL(`${baseUrl}/login`);
+  loginUrl.searchParams.append('message', 'You have been logged out successfully.');
+  loginUrl.searchParams.append('type', 'success');
+  if (phoneNumber) {
+    loginUrl.searchParams.append('phoneNumber', phoneNumber);
+  }
+  window.location.href = loginUrl.toString();
+}
+
+loadDashboard();
   </script>
 </body>
 </html>

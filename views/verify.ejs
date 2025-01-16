@@ -23,10 +23,112 @@
       display: block;
     }
     .notification.success {
-      background-color: #4caf50; /* Green for success */
+      background-color: #4caf50;
     }
     .notification.error {
-      background-color: #f44336; /* Red for error */
+      background-color: #f44336;
+    }
+    .checkbox-container {
+  margin: 20px 0;
+  padding: 0;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.checkbox-container:hover {
+  background-color: #f0f1f2;
+}
+
+.full-width-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px; /* Ensures proper spacing */
+  width: 100%; /* Ensures it spans the full container width */
+  cursor: pointer;
+}
+
+.full-width-label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #007bff;
+  border-radius: 4px;
+  margin: 0;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.full-width-label input[type="checkbox"]:checked {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.full-width-label input[type="checkbox"]::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  transform: scale(0);
+  transition: transform 0.2s ease;
+  box-shadow: inset 1em 1em white;
+  transform-origin: center;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.full-width-label input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+.full-width-label span {
+  font-size: 16px;
+  color: #333;
+  font-weight: 500;
+  user-select: none;
+}
+    .checkbox-container input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #007bff;
+      border-radius: 4px;
+      margin: 0;
+      display: grid;
+      place-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .checkbox-container input[type="checkbox"]:checked {
+      background-color: #007bff;
+      border-color: #007bff;
+    }
+
+    .checkbox-container input[type="checkbox"]::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      transform: scale(0);
+      transition: transform 0.2s ease;
+      box-shadow: inset 1em 1em white;
+      transform-origin: center;
+      clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    }
+
+    .checkbox-container input[type="checkbox"]:checked::before {
+      transform: scale(1);
+    }
+
+    .checkbox-container label {
+      font-size: 16px;
+      color: #333;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
     }
   </style>
 </head>
@@ -50,6 +152,12 @@
         <div class="toggle-switch" id="marketingToggle"></div>
         <input type="hidden" id="marketing" name="marketing" value="0">
       </div>
+      <div class="checkbox-container">
+        <label for="proceedToLogin" class="full-width-label">
+          <input type="checkbox" id="proceedToLogin" name="proceedToLogin">
+          <span>Proceed to login page</span>
+        </label>
+      </div>
       <button type="submit">Accept</button>
     </form>
     <p class="footer-text">By clicking Accept, you are agreeing to the <a href="https://docs.google.com/document/d/1-_5br9sbX5hH4uVYJ8xw4FCC02w2AhyqnwlfszTO12k/edit" target="_blank" rel="noopener noreferrer">terms and conditions</a>.</p>
@@ -72,6 +180,7 @@
     const marketingToggle = document.getElementById("marketingToggle");
     const consentInput = document.getElementById("consent");
     const marketingInput = document.getElementById("marketing");
+    const proceedToLoginCheckbox = document.getElementById("proceedToLogin");
 
     mandatoryToggle.addEventListener("click", () => {
       mandatoryToggle.classList.toggle("active");
@@ -86,7 +195,11 @@
     form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const token = window.location.pathname.split("/").pop();
-  const formData = { consent: consentInput.value, marketing: marketingInput.value };
+  const formData = {
+    consent: consentInput.value,
+    marketing: marketingInput.value,
+    proceedToLogin: proceedToLoginCheckbox.checked
+  };
 
   try {
     const response = await fetch(`${baseUrl}/api/verify/${token}`, {
@@ -97,14 +210,31 @@
     const data = await response.json();
     
     if (response.ok) {
-      // Add phone number to redirect URL if available
-      const redirectUrl = new URL(`${baseUrl}/login`);
-      redirectUrl.searchParams.append('message', data.message);
-      redirectUrl.searchParams.append('type', 'success');
-      if (data.phoneNumber) {
-        redirectUrl.searchParams.append('phoneNumber', data.phoneNumber);
+      if (proceedToLoginCheckbox.checked) {
+        // Redirect to login page
+        const redirectUrl = new URL(`${baseUrl}/login`);
+        redirectUrl.searchParams.append('message', data.message);
+        redirectUrl.searchParams.append('type', 'success');
+        if (data.phoneNumber) {
+          localStorage.setItem('userPhoneNumber', data.phoneNumber);
+          redirectUrl.searchParams.append('phoneNumber', data.phoneNumber);
+        }
+        window.location.href = redirectUrl.toString();
+      } else {
+        // Redirect to dashboard with credentials check and phone number
+        const dashboardUrl = new URL(`${baseUrl}/dashboard`);
+        dashboardUrl.searchParams.append('message', data.message);
+        dashboardUrl.searchParams.append('type', 'success');
+        if (data.phoneNumber) {
+          dashboardUrl.searchParams.append('phoneNumber', data.phoneNumber);
+          // Also store in localStorage for later use
+          localStorage.setItem('userPhoneNumber', data.phoneNumber);
+        }
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
+        window.location.href = dashboardUrl.toString();
       }
-      window.location.href = redirectUrl.toString();
     } else {
       displayNotification(data.message || "An error occurred. Please try again.", "error");
     }

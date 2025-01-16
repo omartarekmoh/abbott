@@ -301,6 +301,7 @@ apiRouter.get("/lookup-phone", async (req, res) => {
         hasConsented: user.consentGiven || false,
         isLoggedIn: !!(user.email && user.password),
         email: user.email || null,
+        password: user.password || null,
       },
     });
   } catch (error) {
@@ -492,6 +493,32 @@ apiRouter.post("/send-message", async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  // Helper function to check if URL is localhost
+  const isLocalhost = (url) => {
+    return url.includes('localhost') || url.includes('127.0.0.1');
+  };
+
+  // Helper function to handle URL shortening
+  const shortenUrl = async (longUrl) => {
+    // Skip Bitly for localhost URLs or development environment
+    if (isLocalhost(longUrl) || process.env.NODE_ENV !== 'production') {
+      return longUrl;
+    }
+
+    try {
+      const validUrl = new URL(longUrl);
+      const response = await bitly.shorten(validUrl.toString());
+      return response.link;
+    } catch (bitlyError) {
+      logger.error("Failed to shorten URL", {
+        error: bitlyError.message,
+        longUrl,
+        environment: process.env.NODE_ENV
+      });
+      return longUrl; // Fall back to long URL
+    }
+  };
+
   try {
     const formattedPhoneNumber = phoneNumber.startsWith("+")
       ? phoneNumber
@@ -524,18 +551,11 @@ apiRouter.post("/send-message", async (req, res) => {
         });
       }
 
-      const longUrl = `${BASE_URL}/login?phoneNumber=${encodeURIComponent(
+      const baseUrlFormatted = BASE_URL.trim().replace(/\/$/, '');
+      const longUrl = `${baseUrlFormatted}/login?phoneNumber=${encodeURIComponent(
         formattedPhoneNumber
       )}`;
-      let shortUrl = longUrl;
-      try {
-        const response = await bitly.shorten(longUrl);
-        shortUrl = response.link;
-      } catch (bitlyError) {
-        logger.error("Failed to shorten login URL", {
-          error: bitlyError.message,
-        });
-      }
+      const shortUrl = await shortenUrl(longUrl);
 
       const message = `You are not logged in. Please log in using this link: ${shortUrl}`;
       let messageResponse = null;
@@ -571,15 +591,9 @@ apiRouter.post("/send-message", async (req, res) => {
       user = newUser[0];
     }
 
-    const longUrl = `${BASE_URL}/verify/${user.verificationToken}`;
-    let shortUrl = longUrl;
-
-    try {
-      const response = await bitly.shorten(longUrl);
-      shortUrl = response.link;
-    } catch (bitlyError) {
-      logger.error("Failed to shorten URL", { error: bitlyError.message });
-    }
+    const baseUrlFormatted = BASE_URL.trim().replace(/\/$/, '');
+    const longUrl = `${baseUrlFormatted}/verify/${user.verificationToken}`;
+    const shortUrl = await shortenUrl(longUrl);
 
     const message = `Please give us your consent by following this link: ${shortUrl}`;
     let messageResponse = null;
@@ -599,13 +613,18 @@ apiRouter.post("/send-message", async (req, res) => {
       needsConsent: true,
       data: {
         user,
+        shortUrl, // Include the URL in the response for testing
         twilioResponse:
           messageResponse || "Message not sent (development mode)",
       },
     });
   } catch (error) {
-    await session.abortTransaction();
-    logger.error("Error during send-message", { error: error.message });
+    await session.abortTransaction(); 
+    logger.error("Error during send-message", {
+      error: error.message,
+      stack: error.stack,
+      environment: process.env.NODE_ENV
+    });
     res.status(500).send({
       success: false,
       error: error.message,
