@@ -223,6 +223,9 @@ Thank you for your cooperation.
           messageResponse || "Message not sent (development mode).",
       },
     });
+
+    logger.info(`sent a replace sensor message to phoneNumber ${formattedPhoneNumber}`);
+    
   } catch (error) {
     await session.abortTransaction();
     logger.error("Error during send-user-info-request", { error: error.message });
@@ -237,7 +240,7 @@ Thank you for your cooperation.
 
 apiRouter.post("/sms", async (req, res) => {
   const from = req.body.From;
-  const body = req.body.Body.trim(); // Full message body
+  const body = req.body.Body.trim();
 
   try {
     const user = await User.findOne({ phoneNumber: from });
@@ -263,6 +266,7 @@ apiRouter.post("/sms", async (req, res) => {
         to: from,
       });
 
+      logger.info(`recived a replace sensor message to phoneNumber ${phoneNumber}`);
       sendSmsDataToServer(from);
     }
 
