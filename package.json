@@ -25,6 +25,7 @@
     "mongodb": "^6.12.0",
     "mongoose": "^8.9.2",
     "morgan": "^1.10.0",
+    "node-url-shortener": "^2.0.3",
     "nodemailer": "^6.9.16",
     "twilio": "^5.4.0",
     "winston": "^3.17.0",

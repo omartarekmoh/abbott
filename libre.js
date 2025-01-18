@@ -141,7 +141,7 @@ async function main() {
     const { fullName: userName, combinedReadings: processedData } =
     processGlucoseData(glucoseMeasurement, cgmData.graphData);
     
-    // console.log(processedData);
+    console.log(processedData);
     
     return processedData;
   } catch (error) {
@@ -150,7 +150,7 @@ async function main() {
   }
 }
 
-// main().catch(console.error);
+main().catch(console.error);
 
 module.exports = {
     processGlucoseData,

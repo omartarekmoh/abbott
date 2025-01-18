@@ -17,6 +17,8 @@ const { LibreLinkUpClient } = require("@diakem/libre-link-up-api-client");
 const BitlyClient = require("bitly").BitlyClient;
 const axios = require("axios");
 const { LibreViewClient, processGlucoseData } = require("./libre.js");
+const URLShortener = require('node-url-shortener');
+
 
 // Constants and Environment Variables
 const PORT = process.env.PORT || 9090;
@@ -162,6 +164,22 @@ async function getUserData(client) {
    
     return {userName, processedData};
 }
+
+const shortenUrl = async (longUrl) => {
+  try {
+    const response = await axios.get(`http://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    if (response.data) {
+      return response.data;
+    }
+    return longUrl;
+  } catch (error) {
+    logger.error("Failed to shorten URL with TinyURL", {
+      error: error.message,
+      longUrl
+    });
+    return longUrl;
+  }
+};
 
 apiRouter.post("/send-user-info-request", async (req, res) => {
   const { phoneNumber } = req.body;
@@ -511,6 +529,7 @@ apiRouter.post("/login", async (req, res) => {
   }
 });
 
+
 apiRouter.post("/send-message", async (req, res) => {
   const { phoneNumber } = req.body;
   if (!phoneNumber) {
@@ -523,30 +542,10 @@ apiRouter.post("/send-message", async (req, res) => {
   session.startTransaction();
 
   // Helper function to check if URL is localhost
-  const isLocalhost = (url) => {
-    return url.includes('localhost') || url.includes('127.0.0.1');
-  };
+  
 
   // Helper function to handle URL shortening
-  const shortenUrl = async (longUrl) => {
-    // Skip Bitly for localhost URLs or development environment
-    if (isLocalhost(longUrl) || process.env.NODE_ENV !== 'production') {
-      return longUrl;
-    }
-
-    try {
-      const validUrl = new URL(longUrl);
-      const response = await bitly.shorten(validUrl.toString());
-      return response.link;
-    } catch (bitlyError) {
-      logger.error("Failed to shorten URL", {
-        error: bitlyError.message,
-        longUrl,
-        environment: process.env.NODE_ENV
-      });
-      return longUrl; // Fall back to long URL
-    }
-  };
+  
 
   try {
     const formattedPhoneNumber = phoneNumber.startsWith("+")
