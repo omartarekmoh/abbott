@@ -17,7 +17,6 @@ const { LibreLinkUpClient } = require("@diakem/libre-link-up-api-client");
 const BitlyClient = require("bitly").BitlyClient;
 const axios = require("axios");
 const { LibreViewClient, processGlucoseData } = require("./libre.js");
-const URLShortener = require('node-url-shortener');
 
 
 // Constants and Environment Variables
