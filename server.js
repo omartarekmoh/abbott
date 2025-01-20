@@ -18,13 +18,12 @@ const BitlyClient = require("bitly").BitlyClient;
 const axios = require("axios");
 const { LibreViewClient, processGlucoseData } = require("./libre.js");
 
-
 // Constants and Environment Variables
 const PORT = process.env.PORT || 9090;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const BITLY_API = process.env.BITLY_API;
 const SERVER_2_WS_URL =
-  "wss://af829a6a-bf37-46af-be69-2490e65e1a5d-00-2gn9zyi2n3qvf.pike.replit.dev/user";
+  "wss://abbot-voice-assistant.replit.app/user";
 const TWILLIO_SID = process.env.TWILLIO_SID;
 const TWILLIO_TOKEN = process.env.TWILLIO_TOKEN;
 const TWILLIO_NUM = process.env.TWILLIO_NUM;
@@ -91,13 +90,13 @@ const authenticate = (req, res, next) => {
 
 // Utility Functions
 async function sendLoginDataToServer(name, processedData, phoneNumber = "") {
-  if(!phoneNumber){
+  if (!phoneNumber) {
     return;
   }
   const ws = new WebSocket(SERVER_2_WS_URL);
   // console.log("ASDSAD" + processedData);
   ws.on("open", () => {
-    const message = { event: "user_login", phoneNumber, name, processedData};
+    const message = { event: "user_login", phoneNumber, name, processedData };
     ws.send(JSON.stringify(message));
     console.log("Login data sent to Server 2:", message);
     ws.close();
@@ -107,13 +106,13 @@ async function sendLoginDataToServer(name, processedData, phoneNumber = "") {
 }
 
 async function sendSmsDataToServer(phoneNumber = "") {
-  if(!phoneNumber){
+  if (!phoneNumber) {
     return;
   }
   const ws = new WebSocket(SERVER_2_WS_URL);
   // console.log("ASDSAD" + processedData);
   ws.on("open", () => {
-    const message = { event: "user_send_sms", phoneNumber};
+    const message = { event: "user_send_sms", phoneNumber };
     ws.send(JSON.stringify(message));
     console.log("Login data sent to Server 2:", message);
     ws.close();
@@ -137,9 +136,9 @@ async function sendConsetAvailable(phoneNumber) {
 
 async function libreLogin(email, password) {
   const client = new LibreViewClient();
-  
+
   const loginData = await client.login(email, password);
-  
+
   // console.log(loginData)
   return client;
 }
@@ -149,24 +148,23 @@ async function getUserData(client) {
   if (!connectionsData.length) {
     throw new Error("No connections found");
   }
-  
+
   const patientId = connectionsData[0].patientId;
   const glucoseMeasurement = connectionsData[0];
   const cgmData = await client.getCGMData(patientId);
   // console.log(glucoseMeasurement)
-  
-  const { fullName: userName, combinedReadings: processedData } = processGlucoseData(
-    glucoseMeasurement,
-    cgmData.graphData
-  );
-  
-   
-    return {userName, processedData};
+
+  const { fullName: userName, combinedReadings: processedData } =
+    processGlucoseData(glucoseMeasurement, cgmData.graphData);
+
+  return { userName, processedData };
 }
 
 const shortenUrl = async (longUrl) => {
   try {
-    const response = await axios.get(`http://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    const response = await axios.get(
+      `http://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`
+    );
     if (response.data) {
       return response.data;
     }
@@ -174,7 +172,7 @@ const shortenUrl = async (longUrl) => {
   } catch (error) {
     logger.error("Failed to shorten URL with TinyURL", {
       error: error.message,
-      longUrl
+      longUrl,
     });
     return longUrl;
   }
@@ -241,11 +239,14 @@ Thank you for your cooperation.
       },
     });
 
-    logger.info(`sent a replace sensor message to phoneNumber ${formattedPhoneNumber}`);
-
+    logger.info(
+      `sent a replace sensor message to phoneNumber ${formattedPhoneNumber}`
+    );
   } catch (error) {
     await session.abortTransaction();
-    logger.error("Error during send-user-info-request", { error: error.message });
+    logger.error("Error during send-user-info-request", {
+      error: error.message,
+    });
     res.status(500).send({
       success: false,
       error: error.message,
@@ -258,7 +259,7 @@ Thank you for your cooperation.
 apiRouter.post("/sms", async (req, res) => {
   console.log("Incoming SMS request body:", req.body); // Debug log
   logger.info("Incoming SMS received", { body: req.body }); // Structured logging
-  
+
   const from = req.body.From;
   const body = req.body.Body.trim();
 
@@ -461,18 +462,18 @@ apiRouter.post("/login", async (req, res) => {
       });
     }
 
-    
     const client = await libreLogin(email, password);
-    
-    const {userName : userName, processedData : processedData} = await getUserData(client);
+
+    const { userName: userName, processedData: processedData } =
+      await getUserData(client);
 
     let user;
     if (phoneNumber) {
       const formattedPhoneNumber = phoneNumber.startsWith("+")
-      ? phoneNumber
-      : `+${phoneNumber}`;
+        ? phoneNumber
+        : `+${phoneNumber}`;
       user = await User.findOne({ phoneNumber: formattedPhoneNumber });
-      
+
       if (user) {
         if (!user.email || !user.password) {
           await User.updateOne(
@@ -508,9 +509,13 @@ apiRouter.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
     // console.log(processedData)
-    await sendLoginDataToServer(userName, processedData, user?.phoneNumber || "");
+    await sendLoginDataToServer(
+      userName,
+      processedData,
+      user?.phoneNumber || ""
+    );
     await session.commitTransaction();
- 
+
     res.status(200).json({
       message: "Login successful",
       token,
@@ -528,7 +533,6 @@ apiRouter.post("/login", async (req, res) => {
   }
 });
 
-
 apiRouter.post("/send-message", async (req, res) => {
   const { phoneNumber } = req.body;
   if (!phoneNumber) {
@@ -541,10 +545,8 @@ apiRouter.post("/send-message", async (req, res) => {
   session.startTransaction();
 
   // Helper function to check if URL is localhost
-  
 
   // Helper function to handle URL shortening
-  
 
   try {
     const formattedPhoneNumber = phoneNumber.startsWith("+")
@@ -578,7 +580,7 @@ apiRouter.post("/send-message", async (req, res) => {
         });
       }
 
-      const baseUrlFormatted = BASE_URL.trim().replace(/\/$/, '');
+      const baseUrlFormatted = BASE_URL.trim().replace(/\/$/, "");
       const longUrl = `${baseUrlFormatted}/login?phoneNumber=${encodeURIComponent(
         formattedPhoneNumber
       )}`;
@@ -618,7 +620,7 @@ apiRouter.post("/send-message", async (req, res) => {
       user = newUser[0];
     }
 
-    const baseUrlFormatted = BASE_URL.trim().replace(/\/$/, '');
+    const baseUrlFormatted = BASE_URL.trim().replace(/\/$/, "");
     const longUrl = `${baseUrlFormatted}/verify/${user.verificationToken}`;
     const shortUrl = await shortenUrl(longUrl);
 
@@ -646,11 +648,11 @@ apiRouter.post("/send-message", async (req, res) => {
       },
     });
   } catch (error) {
-    await session.abortTransaction(); 
+    await session.abortTransaction();
     logger.error("Error during send-message", {
       error: error.message,
       stack: error.stack,
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
     });
     res.status(500).send({
       success: false,
